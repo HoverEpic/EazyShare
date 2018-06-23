@@ -1,0 +1,544 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//FR" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="fr">
+    <head>
+        <title>EazyShare</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+        <script defer src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/css/bootstrap-select.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/bootstrap-table.min.css">
+        <link rel="stylesheet" href="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/build/css/bootstrap-datetimepicker.css">
+        <link rel="stylesheet" href="http://www.bootstraptoggle.com/css/bootstrap-toggle.css">
+        <style>
+            .bootstrap-select.btn-group .dropdown-menu li a {
+                padding: 5px;
+            }
+            .bootstrap-select .dropdown-toggle.bs-placeholder, .input-group .form-control:last-child, .input-group-btn:last-child>.btn {
+                border-radius: 4px;
+            }
+            .fixed-table-toolbar .btn {
+                height: 34px;
+            }
+        </style>
+    </head>
+    <body>
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="#">EazyShare</a>
+                </div>
+            </div>
+        </nav>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="btn-group pull-left">
+                        <h3>Shares</h3>
+                    </div>
+                    <div style="clear: both"></div>
+                    <div id="toolbar" class="btn-group">
+                        <button type="button" class="btn btn-success" id="add_share">
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </button>
+                        <button type="button" class="btn btn-danger" id="remove_share">
+                            <i class="glyphicon glyphicon-trash"></i>
+                        </button>
+                    </div>
+                    <table id="table_shares"></table>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" tabindex="-1" role="dialog" id="add_share_modal">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">Create a new share</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div>
+                            <!-- Nav tabs -->
+                            <ul class="nav nav-tabs" role="tablist">
+                                <li role="presentation" class="active"><a href="#share_file" aria-controls="share_file" role="tab" data-toggle="tab">File</a></li>
+                                <li role="presentation" class="disabled" id="nav_options"><a href="#share_options" aria-controls="share_options" role="tab" data-toggle="tab">Options</a></li>
+                            </ul>
+
+                            <!-- Tab panes -->
+                            <div class="tab-content">
+                                <div role="tabpanel" class="tab-pane active" id="share_file">
+                                    <h3>Find the file</h3>
+
+                                    <!-- tool box -->
+
+                                    <!-- breadcrumb -->
+                                    <ol class="breadcrumb" id="breadcrumb">
+                                        <li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></a></li>
+                                        <li><a href="#">data</a></li>
+                                        <li class="active">content</li>
+                                    </ol>
+
+                                    <!-- files -->
+                                    <table class="table table-hover table-condensed" id="files">
+                                        <thead>
+                                        <th>file</th>
+                                        <th>size</th>
+                                        <th>date</th>
+                                        <th>options</th>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><span class="glyphicon glyphicon-send" aria-hidden="true"></span> Dockerfile</td>
+                                                <td>50 ko</td>
+                                                <td>juin  21 13:27</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-primary btn-xs button_share">Share</button>
+                                                    <button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="glyphicon glyphicon-folder-open" aria-hidden="true"></span> <a href="#">node_modules</a></td>
+                                                <td>405 ko</td>
+                                                <td>juin  21 13:27</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="glyphicon glyphicon-folder-open" aria-hidden="true"></span> <a href="#">public_html</a></td>
+                                                <td>3.7 Mo</td>
+                                                <td>juin  21 13:27</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+
+                                    <!-- pages files -->
+                                    <!--<nav aria-label="Page navigation">
+                                        <ul class="pagination">
+                                            <li>
+                                                <a href="#" aria-label="Previous">
+                                                    <span aria-hidden="true">&laquo;</span>
+                                                </a>
+                                            </li>
+                                            <li><a href="#">1</a></li>
+                                            <li><a href="#">2</a></li>
+                                            <li><a href="#">3</a></li>
+                                            <li><a href="#">4</a></li>
+                                            <li><a href="#">5</a></li>
+                                            <li>
+                                                <a href="#" aria-label="Next">
+                                                    <span aria-hidden="true">&raquo;</span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </nav>-->
+
+                                </div>
+                                <div role="tabpanel" class="tab-pane" id="share_options">
+                                    <h3>Share options</h3>
+                                    <p>File : <code id="file_path"></code></p>
+                                    <div class="row">
+                                        <div class='col-sm-6'>
+                                            <div class="form-group">
+                                                <label>
+                                                    <input type="checkbox" data-toggle="toggle" data-onstyle="success" data-size="small" id="time_limited">
+                                                    Time limited
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class='col-sm-6' id="time_limited_picker">
+                                            <div class="form-group">
+                                                <div class='input-group date' id='time_limite'>
+                                                    <input type='text' class="form-control" />
+                                                    <span class="input-group-addon">
+                                                        <span class="glyphicon glyphicon-calendar"></span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class='col-sm-6'>
+                                            <div class="form-group">
+                                                <label>
+                                                    <input type="checkbox" data-toggle="toggle" data-onstyle="success" data-size="small" id="count_limited">
+                                                    Count limited
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class='col-sm-6' id="download_limited_picker">
+                                            <div class="input-group">
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default" id="download_limited_count_rem"> - </button>
+                                                </span>
+                                                <input type="text" class="form-control" id="download_limited_count" value="0">
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default" id="download_limited_count_add"> + </button>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-6">
+                                            <div class="input-group">
+                                                <div class="input-group-btn">
+                                                    <button class="btn btn-outline-secondary" type="button" id="button_generate">Generate</button>
+                                                </div>
+                                                <input type="text" class="form-control" placeholder="Share token" aria-label="" aria-describedby="basic-addon1" id="share_code">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="create_link">Create link</button>
+                    </div>
+                </div><!-- /.modal-content -->
+            </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+        <div class="modal fade" tabindex="-1" role="dialog" id="compress_modal">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">File compression</h4>
+                    </div>
+                    <div class="modal-body">
+                        <p>File or folder : <code>node_modules</code></p>
+                        <p>Result : <code>node_modules.zip</code></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary">Compress</button>
+                    </div>
+                </div><!-- /.modal-content -->
+            </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+        <div class="modal fade" tabindex="-1" role="dialog" id="show_link_modal">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">Secured link created</h4>
+                    </div>
+                    <div class="modal-body">
+                        <p>File : <code id="file_name">node_modules</code></p>
+                        <p>Direct URL : <code id="file_link">node_modules.zip</code></p>
+                        <p>Download page : <code id="page_link">node_modules.zip</code></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    </div>
+                </div><!-- /.modal-content -->
+            </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/js/bootstrap-select.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/bootstrap-table.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/locale/bootstrap-table-fr-FR.min.js"></script>
+        <script src="https://gitcdn.github.io/bootstrap-toggle/2.2.2/js/bootstrap-toggle.min.js"></script>
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.9.0/moment-with-locales.js"></script>
+        <script src="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/src/js/bootstrap-datetimepicker.js"></script>
+        <script>
+            var count = 1;
+            $(document).ready(function () {
+                console.log("ready!");
+                //load shares
+                $('#table_shares').bootstrapTable({//http://bootstrap-table.wenzhixin.net.cn/documentation/
+                    classes: 'table table-hover table-condensed table-responsive',
+                    toolbar: "#toolbar",
+                    url: '/listshares',
+                    method: 'get',
+                    sidePagination: 'server',
+                    cache: false,
+                    height: '',
+                    striped: false,
+                    pagination: true,
+                    pageSize: 10,
+                    pageList: [10, 25, 50, 100, 200],
+                    search: true,
+                    searchAlign: 'right',
+                    showColumns: false,
+                    showRefresh: true,
+                    showHeader: true,
+                    minimumCountColumns: 2,
+                    clickToSelect: false,
+                    columns: [
+                        {
+                            title: 'File',
+                            checkbox: true
+                        }, {
+                            field: 'file',
+                            title: 'File'
+                        }, {
+                            field: 'token',
+                            title: 'Token'
+                        }, {
+                            field: 'create_time',
+                            title: 'Created'
+                        }, {
+                            field: 'limit_time',
+                            title: 'Limit Time'
+                        }, {
+                            field: 'limit_downloads',
+                            title: 'Limit Downloads'
+                        }, {
+                            field: 'total_downloads',
+                            title: 'Downloads'
+                        }, {
+                            title: 'Edit',
+                            events: operateEvents,
+                            formatter: editFormatter
+                        }
+                    ]
+                });
+                function editFormatter(value, row, index) {
+                    return [
+                        '<button class="btn btn-default btn-xs edit" title="Edit">',
+                        '<i class="glyphicon glyphicon-pencil"></i> Edit',
+                        '</button> ',
+                        '<button class="btn btn-danger btn-xs remove" title="Delete">',
+                        '<i class="glyphicon glyphicon-remove"></i> Remove',
+                        '</button> ',
+                        '<button class="btn btn-success btn-xs link" title="Link">',
+                        '<i class="glyphicon glyphicon-link"></i> Link',
+                        '</button> '
+                    ].join('');
+                }
+                // disabled tab hack
+                $(".nav-tabs a[data-toggle=tab]").on("click", function (e) {
+                    if ($(this).parent().hasClass("disabled")) {
+                        e.preventDefault();
+                        return false;
+                    }
+                });
+                $("#add_share").click(function () {
+                    updateFileExplorer();
+                    $('#nav_options').addClass('disabled');
+                    $('#add_share_modal').modal('show');
+                    $('.nav-tabs a[href="#share_file"]').tab('show');
+                    $('#time_limited').bootstrapToggle('off');
+                    $('#count_limited').bootstrapToggle('off');
+                    $('#download_limited_count').val(count);
+                    $('#share_code').val('');
+                    $('#time_limite input').val('');
+                    $('#file_name').html("");
+                    $('#file_link').html("");
+                    $('#page_link').html("");
+                });
+
+                $("#time_limited").bootstrapToggle();
+                $("#count_limited").bootstrapToggle();
+
+                $("#time_limited").change(function () {
+                    var state = !$(this).parent().hasClass('off');
+                    if (state) {
+                        $('#time_limite').datetimepicker({
+                            locale: 'fr',
+                            defaultDate: moment().add('d', 1).toDate()
+                        });
+                        $('#time_limited_picker').show();
+                    } else {
+                        $('#time_limited_picker').hide();
+                        if ($('#time_limite').data("DateTimePicker"))
+                            $('#time_limite').data("DateTimePicker").destroy();
+                    }
+                });
+                $("#count_limited").change(function () {
+                    var state = !$(this).parent().hasClass('off');
+                    if (state) {
+                        $("#download_limited_picker").show();
+                    } else {
+                        $("#download_limited_picker").hide();
+                    }
+                });
+                $("#button_generate").click(function () {
+                    $('#share_code').val(makeid());
+                });
+                $("#download_limited_count_rem").click(function () {
+                    count--;
+                    if (count < 1)
+                        count = 1;
+                    $('#download_limited_count').val(count);
+                });
+                $("#download_limited_count_add").click(function () {
+                    count++;
+                    $('#download_limited_count').val(count);
+                });
+                $('#create_link').click(function () {
+                    generateLink();
+                });
+                $("#remove_share").click(function () {
+                    var ids = $.map($('#table_shares').bootstrapTable('getSelections'), function (row) {
+                        return row.id;
+                    });
+                    $('#table_shares').bootstrapTable('remove', {
+                        field: 'id',
+                        values: ids
+                    });
+                    removeLink(ids);
+                });
+            });
+            // catch table events here !
+            window.operateEvents = {
+                'click .edit': function (e, value, row, index) {
+                    editLink(row);
+                },
+                'click .remove': function (e, value, row, index) {
+                    removeLink(row.id);
+                },
+                'click .link': function (e, value, row, index) {
+                    $('#file_name').html(row.file);
+                    $('#file_link').html(row.token);
+                    $('#page_link').html(row.token + "?direct=false");
+                    $('#show_link_modal').modal('show');
+                }
+            };
+            function updateFileExplorer(path) {
+                if (!path)
+                    path = "/";
+                $.ajax({
+                    url: '/listfiles',
+                    type: 'POST',
+                    data: JSON.stringify({path: path}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            //console.log(data);
+                            document.getElementById('breadcrumb').innerHTML = '';
+                            $('#breadcrumb').append('<li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></a></li>');
+
+                            $("#breadcrumb_refresh").click(function () {
+                                updateFileExplorer(path);
+                            });
+
+                            data = JSON.parse(data);
+                            var breadcrumbs = data.path.substring(1).split("/");
+                            var fullpath = "";
+                            for (var i = 0; i < breadcrumbs.length; i++) {
+                                var breadcrumb = breadcrumbs[i];
+                                fullpath += "/" + breadcrumb;
+                                if (i !== breadcrumbs.length - 1)
+                                    $('#breadcrumb').append('<li><a class="breadcrumb_click" folder="' + fullpath + '" href="#">' + breadcrumb + '</a></li>');
+                                else
+                                    $('#breadcrumb').append('<li class="active">' + breadcrumb + '</li>');
+                            }
+                            $('.breadcrumb_click').click(function () {
+                                var path = $(this).attr("folder");
+                                updateFileExplorer(path);
+                            });
+
+                            $('#files tbody').html('');
+                            for (var i = 0; i < data.files.length; i++) {
+                                var file = data.files[i];
+                                console.log(file);
+                                $('#files tbody').append(['<tr path="' + file.path + '">',
+                                    '<td><span class="glyphicon glyphicon-' + (file.folder ? 'folder-open' : 'send') + '" aria-hidden="true"></span> ' + (file.folder ? ' <a class="folder_click" href="#">' + file.name + '</a>' : file.name) + '</td>',
+                                    '<td>' + file.size + '</td>',
+                                    '<td>' + file.date + '</td>',
+                                    '<td>',
+                                    (file.folder ? '' : '<button type="button" class="btn btn-primary btn-xs button_share">Share</button> '),
+                                    '<!--<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button>-->',
+                                    '</td>',
+                                    '</tr>'].join(''));
+                            }
+                            $('.folder_click').click(function () {
+                                var path = $(this).html();
+                                updateFileExplorer(data.path + "/" + path);
+                            });
+                            $(".button_compress").click(function () {
+                                var path = $(this).parent().parent().attr("path");
+                                console.log("share " + path);
+                                $('#compress_modal').modal('show');
+                            });
+                            $(".button_share").click(function () {
+                                var path = $(this).parent().parent().attr("path");
+                                $('#file_path').html(path);
+                                console.log("share " + path);
+                                $('#nav_options').removeClass('disabled');
+                                $('#time_limited_picker').hide();
+                                $("#download_limited_picker").hide();
+                                count = 1;
+                                $('#download_limited_count').val(count);
+                                $('.nav-tabs a[href="#share_options"]').tab('show');
+                            });
+                        }
+                    }
+                });
+            }
+            function makeid() {
+                var text = "";
+                var length = 10;
+                var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                for (var i = 0; i < length; i++)
+                    text += possible.charAt(Math.floor(Math.random() * possible.length));
+                return text;
+            }
+            function generateLink() {
+                var file = $('#file_path').html();
+                var time = false;
+                var count = -1;
+                var code = $('#share_code').val();
+                if (code === "") {
+                    $('#share_code').val(makeid());
+                    code = $('#share_code').val();
+                }
+                console.log("generate code for file " + file);
+                console.log("with code " + code);
+                $.ajax({
+                    url: '/share',
+                    type: 'PUT',
+                    data: JSON.stringify({file: file, time: time, count: count, token: code}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            data = JSON.parse(data);
+                            $('#file_name').html(data.file);
+                            $('#file_link').html(data.url);
+                            $('#page_link').html(data.url + "?direct=false");
+                            $('#add_share_modal').modal('hide');
+                            $('#show_link_modal').modal('show');
+                            $('#table_shares').bootstrapTable('refresh', {silent: true});
+                        }
+                    }
+                });
+            }
+            function editLink(row) {
+                //
+                $('#table_shares').bootstrapTable('refresh', {silent: true});
+            }
+            function removeLink(ids) {
+                if (!Array.isArray(ids))
+                    ids = [ids];
+                $.ajax({
+                    url: '/dellinks',
+                    type: 'DELETE',
+                    data: JSON.stringify({ids: ids}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            $('#table_shares').bootstrapTable('remove', {
+                                field: 'id',
+                                values: ids
+                            });
+                        }
+                    }
+                });
+            }
+        </script>
+    </body>
+</html>
