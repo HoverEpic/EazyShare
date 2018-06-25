@@ -17,13 +17,19 @@
   "dependencies": {
     "basic-auth": "^2.0.0",
     "body-parser": "^1.18.2",
+    "config": "^1.30.0",
     "cookie-parser": "^1.4.3",
     "debug": "~2.6.9",
     "ejs": "^2.6.1",
     "express": "^4.16.2",
+    "express-fileupload": "^0.4.0",
+    "fs-extra": "^6.0.1",
     "helmet": "^3.12.1",
+    "moment": "^2.22.2",
     "mysql": "^2.15.0",
-    "serve-favicon": "^2.4.5"
+    "serve-favicon": "^2.4.5",
+    "xss": "^1.0.3",
+    "zip-folder": "^1.0.0"
   },
   "license": "ISC",
   "description": ""

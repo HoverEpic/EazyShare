@@ -13,6 +13,7 @@ RUN npm install --save
 # RUN npm install --only=production
 
 COPY public_html public
+COPY config config
 COPY server .
 
 EXPOSE 80

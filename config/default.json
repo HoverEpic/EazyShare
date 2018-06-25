@@ -1,0 +1,35 @@
+{
+    "Config": {
+        "Database": {
+            "type": "mysql"
+        },
+        "Mysql": {
+            "host": "mysql",
+            "port": 3306,
+            "user": "root",
+            "password": "root",
+            "database": "eazyshare",
+            "connectionLimit": 10
+        },
+        "Server": {
+            "port": 80,
+            "host": "0.0.0.0",
+            "url": "http://127.0.0.1"
+        },
+        "Paths": {
+            "root_share": "/share"
+        },
+        "Upload": {
+            "enable": true,
+            "limit": 1024
+        },
+        "Users": {
+            "username": {
+                "password": "password"
+            },
+            "user2": {
+                "password": "pass2"
+            }
+        }
+    }
+}

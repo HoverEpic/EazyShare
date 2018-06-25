@@ -10,6 +10,7 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/bootstrap-table.min.css">
         <link rel="stylesheet" href="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/build/css/bootstrap-datetimepicker.css">
         <link rel="stylesheet" href="http://www.bootstraptoggle.com/css/bootstrap-toggle.css">
+        <link rel="stylesheet" href="https://blueimp.github.io/jQuery-File-Upload/css/jquery.fileupload.css">
         <style>
             .bootstrap-select.btn-group .dropdown-menu li a {
                 padding: 5px;
@@ -26,7 +27,7 @@
         <nav class="navbar navbar-default">
             <div class="container-fluid">
                 <div class="navbar-header">
-                    <a class="navbar-brand" href="#">EazyShare</a>
+                    <a class="navbar-brand" href="/share">EazyShare</a>
                 </div>
             </div>
         </nav>
@@ -38,8 +39,8 @@
                     </div>
                     <div style="clear: both"></div>
                     <div id="toolbar" class="btn-group">
-                        <button type="button" class="btn btn-success" id="add_share">
-                            <i class="glyphicon glyphicon-plus"></i>
+                        <button type="button" class="btn btn-primary" id="add_share">
+                            <i class="glyphicon glyphicon-paperclip"></i>
                         </button>
                         <button type="button" class="btn btn-danger" id="remove_share">
                             <i class="glyphicon glyphicon-trash"></i>
@@ -60,7 +61,7 @@
                         <div>
                             <!-- Nav tabs -->
                             <ul class="nav nav-tabs" role="tablist">
-                                <li role="presentation" class="active"><a href="#share_file" aria-controls="share_file" role="tab" data-toggle="tab">File</a></li>
+                                <li role="presentation" class="active" id="nav_file"><a href="#share_file" aria-controls="share_file" role="tab" data-toggle="tab">File</a></li>
                                 <li role="presentation" class="disabled" id="nav_options"><a href="#share_options" aria-controls="share_options" role="tab" data-toggle="tab">Options</a></li>
                             </ul>
 
@@ -115,6 +116,16 @@
                                         </tbody>
                                     </table>
 
+                                    <span class="btn btn-success fileinput-button">
+                                        <i class="glyphicon glyphicon-plus"></i>
+                                        <span>Upload files here...</span>
+                                        <!-- The file input field used as target for the file upload widget -->
+                                        <input id="fileupload" type="file" name="files[]" multiple="">
+                                    </span>
+                                    <div id="progress" class="progress">
+                                        <div class="progress-bar progress-bar-success"></div>
+                                    </div>
+
                                     <!-- pages files -->
                                     <!--<nav aria-label="Page navigation">
                                         <ul class="pagination">
@@ -140,6 +151,7 @@
                                 <div role="tabpanel" class="tab-pane" id="share_options">
                                     <h3>Share options</h3>
                                     <p>File : <code id="file_path"></code></p>
+                                    <input type="hidden" id="share_id">
                                     <div class="row">
                                         <div class='col-sm-6'>
                                             <div class="form-group">
@@ -182,12 +194,27 @@
                                         </div>
                                     </div>
                                     <div class="row">
+                                        <div class='col-sm-6'>
+                                            <div class="form-group">
+                                                <label>
+                                                    <input type="checkbox" data-toggle="toggle" data-onstyle="success" data-size="small" id="password_limited">
+                                                    Password
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class='col-sm-6' id="password_limited_input">
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" placeholder="Password" aria-label="" aria-describedby="basic-addon1" id="password" autocomplete="off">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
                                         <div class="col-sm-6">
                                             <div class="input-group">
                                                 <div class="input-group-btn">
                                                     <button class="btn btn-outline-secondary" type="button" id="button_generate">Generate</button>
                                                 </div>
-                                                <input type="text" class="form-control" placeholder="Share token" aria-label="" aria-describedby="basic-addon1" id="share_code">
+                                                <input type="text" class="form-control" placeholder="Share token" aria-label="" aria-describedby="basic-addon1" id="share_code" autocomplete="off">
                                             </div>
                                         </div>
                                     </div>
@@ -211,12 +238,15 @@
                         <h4 class="modal-title">File compression</h4>
                     </div>
                     <div class="modal-body">
-                        <p>File or folder : <code>node_modules</code></p>
-                        <p>Result : <code>node_modules.zip</code></p>
+                        <p>File or folder : <code id="compressed_input"></code></p>
+                        <p>Result : </p><div class="form-group">
+                            <label for="exampleInputEmail1">Email address</label>
+                            <input type="email" class="form-control" id="compressed_output" placeholder="Email">
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary">Compress</button>
+                        <button type="button" class="btn btn-primary" id="comppress_button">Compress</button>
                     </div>
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
@@ -226,12 +256,12 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                        <h4 class="modal-title">Secured link created</h4>
+                        <h4 class="modal-title">Secured link</h4>
                     </div>
                     <div class="modal-body">
-                        <p>File : <code id="file_name">node_modules</code></p>
-                        <p>Direct URL : <code id="file_link">node_modules.zip</code></p>
-                        <p>Download page : <code id="page_link">node_modules.zip</code></p>
+                        <p>File : <code id="file_name"></code></p>
+                        <p>Direct URL : <a id="file_link"></a></p>
+                        <p>Download page : <a id="page_link"></a></p>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
@@ -247,10 +277,13 @@
         <script src="https://gitcdn.github.io/bootstrap-toggle/2.2.2/js/bootstrap-toggle.min.js"></script>
         <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.9.0/moment-with-locales.js"></script>
         <script src="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/src/js/bootstrap-datetimepicker.js"></script>
+        <script src="https://blueimp.github.io/jQuery-File-Upload/js/jquery.fileupload.js"></script>
         <script>
+            var downUrl = location.protocol + "//" + location.host + "/download";
             var count = 1;
             $(document).ready(function () {
                 console.log("ready!");
+                // get url path
                 //load shares
                 $('#table_shares').bootstrapTable({//http://bootstrap-table.wenzhixin.net.cn/documentation/
                     classes: 'table table-hover table-condensed table-responsive',
@@ -283,16 +316,21 @@
                             title: 'Token'
                         }, {
                             field: 'create_time',
-                            title: 'Created'
+                            title: 'Created',
+                            formatter: dateFormat
                         }, {
                             field: 'limit_time',
-                            title: 'Limit Time'
-                        }, {
-                            field: 'limit_downloads',
-                            title: 'Limit Downloads'
+                            title: 'Limit Time',
+                            formatter: dateFormat
+                        }, {field: 'limit_download',
+                            title: 'Limit Download'
                         }, {
                             field: 'total_downloads',
                             title: 'Downloads'
+                        }, {
+                            field: 'password',
+                            title: 'Password',
+                            formatter: passwordFormat
                         }, {
                             title: 'Edit',
                             events: operateEvents,
@@ -300,12 +338,17 @@
                         }
                     ]
                 });
+                function dateFormat(value, row, index) {
+                    var time = moment(value);
+                    if (time.isValid())
+                        return time.format('DD/MM/YYYY HH:mm');
+                    return "";
+                }
                 function editFormatter(value, row, index) {
                     return [
                         '<button class="btn btn-default btn-xs edit" title="Edit">',
                         '<i class="glyphicon glyphicon-pencil"></i> Edit',
-                        '</button> ',
-                        '<button class="btn btn-danger btn-xs remove" title="Delete">',
+                        '</button> ', '<button class="btn btn-danger btn-xs remove" title="Delete">',
                         '<i class="glyphicon glyphicon-remove"></i> Remove',
                         '</button> ',
                         '<button class="btn btn-success btn-xs link" title="Link">',
@@ -313,8 +356,12 @@
                         '</button> '
                     ].join('');
                 }
-                // disabled tab hack
-                $(".nav-tabs a[data-toggle=tab]").on("click", function (e) {
+                function passwordFormat(value, row, index) {
+                    if (value !== null)
+                        return '<i class="glyphicon glyphicon-ok"></i>';
+                    return "";
+                }
+                $(".nav-tabs a[data-toggle=tab]").on("click", function (e) { // disabled tab hack
                     if ($(this).parent().hasClass("disabled")) {
                         e.preventDefault();
                         return false;
@@ -322,34 +369,22 @@
                 });
                 $("#add_share").click(function () {
                     updateFileExplorer();
-                    $('#nav_options').addClass('disabled');
-                    $('#add_share_modal').modal('show');
-                    $('.nav-tabs a[href="#share_file"]').tab('show');
-                    $('#time_limited').bootstrapToggle('off');
-                    $('#count_limited').bootstrapToggle('off');
-                    $('#download_limited_count').val(count);
-                    $('#share_code').val('');
-                    $('#time_limite input').val('');
-                    $('#file_name').html("");
-                    $('#file_link').html("");
-                    $('#page_link').html("");
+                    resetShareModal();
                 });
-
                 $("#time_limited").bootstrapToggle();
+                $('#time_limite').datetimepicker({
+                    locale: 'fr',
+                    format: 'YYYY-MM-DD HH:mm', defaultDate: moment().add(1, 'd').toDate()
+                });
                 $("#count_limited").bootstrapToggle();
-
+                $("#password_limited").bootstrapToggle();
                 $("#time_limited").change(function () {
                     var state = !$(this).parent().hasClass('off');
                     if (state) {
-                        $('#time_limite').datetimepicker({
-                            locale: 'fr',
-                            defaultDate: moment().add('d', 1).toDate()
-                        });
+                        $('#time_limite').data("DateTimePicker").date(moment().add(1, 'd').toDate());
                         $('#time_limited_picker').show();
                     } else {
                         $('#time_limited_picker').hide();
-                        if ($('#time_limite').data("DateTimePicker"))
-                            $('#time_limite').data("DateTimePicker").destroy();
                     }
                 });
                 $("#count_limited").change(function () {
@@ -358,6 +393,15 @@
                         $("#download_limited_picker").show();
                     } else {
                         $("#download_limited_picker").hide();
+                    }
+                });
+                $("#password_limited").change(function () {
+                    var state = !$(this).parent().hasClass('off');
+                    if (state) {
+                        $("#password_limited_input").show();
+                    } else {
+                        $("#password_limited_input").hide();
+                        $("#password_limited_input").val('');
                     }
                 });
                 $("#button_generate").click(function () {
@@ -386,9 +430,25 @@
                     });
                     removeLink(ids);
                 });
+                $('#add_share_modal').on('hide.bs.modal', function () {
+                    resetShareModal();
+                });
+                $('#fileupload').fileupload({
+                    url: "/upload",
+                    dataType: 'json',
+                    done: function (e, data) {
+                        $.each(data.result.files, function (index, file) {
+                            console.log("uploaded : " + file.name);
+                        });
+                    },
+                    progressall: function (e, data) {
+                        var progress = parseInt(data.loaded / data.total * 100, 10);
+                        $('#progress .progress-bar').css('width', progress + '%');
+                    }
+                }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
             });
-            // catch table events here !
-            window.operateEvents = {
+
+            window.operateEvents = {// catch table events here !
                 'click .edit': function (e, value, row, index) {
                     editLink(row);
                 },
@@ -397,11 +457,40 @@
                 },
                 'click .link': function (e, value, row, index) {
                     $('#file_name').html(row.file);
-                    $('#file_link').html(row.token);
-                    $('#page_link').html(row.token + "?direct=false");
+                    $('#file_link').html(downUrl + "/" + row.token);
+                    $('#file_link').attr("href", downUrl + "/" + row.token);
+                    $('#page_link').html(downUrl + "/" + row.token + "?direct=false");
+                    $('#page_link').attr("href", downUrl + "/" + row.token + "?direct=false");
                     $('#show_link_modal').modal('show');
                 }
             };
+            function resetShareModal() {
+                $('#add_share_modal .modal-title').html('Create a new share');
+                $('#file_path').html('');
+                $('#share_id').val(0);
+                $('#nav_file').removeClass('disabled');
+                $('#nav_options').addClass('disabled');
+                $('#add_share_modal').modal('show');
+                $('.nav-tabs a[href="#share_file"]').tab('show');
+                $('#time_limited').bootstrapToggle('off');
+                $('#time_limited_picker').hide();
+                $('#time_limite').data("DateTimePicker").date(moment().add(1, 'd').toDate());
+                $('#count_limited').bootstrapToggle('off');
+                $('#download_limited_count').val(count);
+                ;
+                $("#download_limited_picker").hide();
+                $('#password_limited').bootstrapToggle('off');
+                $("#password").val('');
+                $("#password_limited_input").hide();
+                $('#button_generate').removeAttr("disabled");
+                $('#share_code').val('');
+                $('#share_code').removeAttr("disabled");
+                $('#time_limite input').val('');
+                $('#file_name').html("");
+                $('#file_link').html("");
+                $('#page_link').html("");
+                $('#create_link').html("Create link");
+            }
             function updateFileExplorer(path) {
                 if (!path)
                     path = "/";
@@ -414,14 +503,11 @@
                         if (data.error) {
                             console.log(data.error);
                         } else {
-                            //console.log(data);
                             document.getElementById('breadcrumb').innerHTML = '';
-                            $('#breadcrumb').append('<li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></a></li>');
-
+                            $('#breadcrumb').append('<li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon - refresh" aria-hidden="true"></span></a></li>');
                             $("#breadcrumb_refresh").click(function () {
                                 updateFileExplorer(path);
                             });
-
                             data = JSON.parse(data);
                             var breadcrumbs = data.path.substring(1).split("/");
                             var fullpath = "";
@@ -437,18 +523,17 @@
                                 var path = $(this).attr("folder");
                                 updateFileExplorer(path);
                             });
-
                             $('#files tbody').html('');
                             for (var i = 0; i < data.files.length; i++) {
                                 var file = data.files[i];
-                                console.log(file);
                                 $('#files tbody').append(['<tr path="' + file.path + '">',
                                     '<td><span class="glyphicon glyphicon-' + (file.folder ? 'folder-open' : 'send') + '" aria-hidden="true"></span> ' + (file.folder ? ' <a class="folder_click" href="#">' + file.name + '</a>' : file.name) + '</td>',
                                     '<td>' + file.size + '</td>',
                                     '<td>' + file.date + '</td>',
                                     '<td>',
                                     (file.folder ? '' : '<button type="button" class="btn btn-primary btn-xs button_share">Share</button> '),
-                                    '<!--<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button>-->',
+                                    (file.folder ? '<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button> ' : ''),
+                                    '<button type="button" class="btn btn-danger btn-xs button_delete">Delete</button>',
                                     '</td>',
                                     '</tr>'].join(''));
                             }
@@ -456,21 +541,32 @@
                                 var path = $(this).html();
                                 updateFileExplorer(data.path + "/" + path);
                             });
-                            $(".button_compress").click(function () {
-                                var path = $(this).parent().parent().attr("path");
-                                console.log("share " + path);
-                                $('#compress_modal').modal('show');
-                            });
                             $(".button_share").click(function () {
                                 var path = $(this).parent().parent().attr("path");
                                 $('#file_path').html(path);
-                                console.log("share " + path);
                                 $('#nav_options').removeClass('disabled');
                                 $('#time_limited_picker').hide();
                                 $("#download_limited_picker").hide();
                                 count = 1;
                                 $('#download_limited_count').val(count);
                                 $('.nav-tabs a[href="#share_options"]').tab('show');
+                            });
+                            $(".button_compress").click(function () {
+                                var path = $(this).parent().parent().attr("path");
+                                $('#compressed_input').html(path);
+                                $('#compressed_output').val(path + ".zip");
+                                $('#compress_modal').modal('show');
+                            });
+                            $(".button_delete").click(function () {
+                                var path = $(this).parent().parent().attr("path");
+                                console.log("share " + path);
+                                var r = confirm("You are deleting " + path);
+                                if (r == true) { //OK
+                                    deletePath(path);
+                                }
+                            });
+                            $('#comppress_button').click(function () {
+                                compress($('#compressed_input').html(), $('#compressed_output').val());
                             });
                         }
                     }
@@ -485,9 +581,17 @@
                 return text;
             }
             function generateLink() {
+                var id = $('#share_id').val();
                 var file = $('#file_path').html();
-                var time = false;
+                var time = null;
+                if (!$("#time_limited").parent().hasClass('off'))
+                    time = $('#time_limite input').val();
                 var count = -1;
+                if (!$("#count_limited").parent().hasClass('off'))
+                    count = $('#download_limited_count').val();
+                var password = null;
+                if (!$("#password_limited").parent().hasClass('off'))
+                    password = $("#password").val();
                 var code = $('#share_code').val();
                 if (code === "") {
                     $('#share_code').val(makeid());
@@ -498,26 +602,89 @@
                 $.ajax({
                     url: '/share',
                     type: 'PUT',
-                    data: JSON.stringify({file: file, time: time, count: count, token: code}),
+                    data: JSON.stringify({id: id, file: file, time: time, count: count, token: code, password: password}),
                     contentType: 'application/json',
                     success: function (data) {
+                        data = JSON.parse(data);
                         if (data.error) {
                             console.log(data.error);
                         } else {
-                            data = JSON.parse(data);
-                            $('#file_name').html(data.file);
-                            $('#file_link').html(data.url);
-                            $('#page_link').html(data.url + "?direct=false");
                             $('#add_share_modal').modal('hide');
-                            $('#show_link_modal').modal('show');
                             $('#table_shares').bootstrapTable('refresh', {silent: true});
+                            if (data.showUrl) {
+                                $('#file_name').html(data.file);
+                                $('#file_link').html(data.url);
+                                $('#file_link').attr("href", downUrl + "/" + row.token);
+                                $('#page_link').html(data.url + "?direct=false");
+                                $('#page_link').attr("href", downUrl + "/" + row.token + "?direct=false");
+                                $('#show_link_modal').modal('show');
+                            }
                         }
                     }
                 });
             }
             function editLink(row) {
-                //
+                $('#add_share_modal .modal-title').html('Edit share ' + row.id);
+                $('#file_path').html(row.file);
+                $('#share_id').val(row.id);
+                if (row.limit_time !== null) {
+                    $('#time_limited').bootstrapToggle('on');
+                    $('#time_limite').data("DateTimePicker").date(row.limit_time);
+                } else {
+                    $('#time_limited').bootstrapToggle('off');
+                }
+                if (row.limit_download !== -1) {
+                    $('#count_limited').bootstrapToggle('on');
+                    $('#download_limited_count').val(row.limit_download);
+                } else {
+                    $('#count_limited').bootstrapToggle('off');
+                }
+                if (row.password !== null) {
+                    $('#password_limited').bootstrapToggle('on');
+                    $("#password").val(row.password);
+                } else {
+                    $('#password_limited').bootstrapToggle('off');
+                }
+                $('#share_code').val(row.token);
+                $('#button_generate').attr("disabled", "disabled");
+                $('#share_code').attr("disabled", "disabled");
+                $('#nav_file').addClass('disabled');
+                $('.nav-tabs a[href="#share_options"]').tab('show');
+                $('#add_share_modal').modal('show');
                 $('#table_shares').bootstrapTable('refresh', {silent: true});
+                $('#create_link').html("Update link");
+            }
+            function compress(input, output) {
+                $.ajax({
+                    url: '/compress',
+                    type: 'POST',
+                    data: JSON.stringify({input: input, output: output}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            updateFileExplorer(data.path);
+                            $('#compress_modal').modal('hide');
+                        }
+                    }
+                });
+            }
+            function deletePath(path) {
+                $.ajax({
+                    url: '/delete',
+                    type: 'POST',
+                    data: JSON.stringify({file: path}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            updateFileExplorer(data.path);
+                            $('#compress_modal').modal('hide');
+                        }
+                    }
+                });
             }
             function removeLink(ids) {
                 if (!Array.isArray(ids))

@@ -22,7 +22,20 @@
                             <p>You are going to download a file.</p>
                             <p>Name : <code><%= name %></code></p>
                             <p>Size : <code><%= size %></code></p>
+                            <% if (!password) { %>
                             <p><a href="#" class="btn btn-success btn-lg" id="download" role="button">Click to download</a></p>
+                            <% } else { %>
+                            <p>This download is password protected !</p>
+                            <form action="">
+                                <div class="input-group">
+                                    <!--<input type="hidden" class="form-control" name="direct" value="false">-->
+                                    <input type="text" class="form-control" name="password" placeholder="Entre the password" autocomplete="off">
+                                    <span class="input-group-btn">
+                                        <button class="btn btn-default" type="submit">Click to download</button>
+                                    </span>
+                                </div>
+                            </form>
+                            <% } %>
                         </div>
                     </div>
                 </div>
@@ -36,6 +49,7 @@
                 var downUrl = window.location.href.split("?")[0];
                 console.log(downUrl);
                 $('#download').attr("href", downUrl);
+                $('form').attr().attr("action", downUrl);
             });
         </script>
     </body>
