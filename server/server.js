@@ -13,7 +13,7 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const zipFolder = require('zip-folder');
 
-// Constants TODO config env or file
+// Constants TODO config env
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
 const PATH = config.get('Config.Paths.root_share');
@@ -140,6 +140,7 @@ app.get('/download/:token', function (req, res) {
         if (!result)
             res.status(404).send();
         else {
+            //TODO check time limit
             fs.readFile(result.file, function (err, content) {
                 if (err) {
                     res.status(404).send();
@@ -232,7 +233,6 @@ app.put('/share', function (req, res) {
 app.get('/listshares', function (req, res) {
     check_auth(req, res, function (result) {
         if (result) {
-            console.log(req.originalUrl);
             var limit = req.query.limit || 10;
             var offset = req.query.offset || 0;
             var order = req.query.order || 'asc';
@@ -327,9 +327,24 @@ app.delete('/dellinks', function (req, res) {
     check_auth(req, res, function (result) {
         if (result) {
             var ids = req.body.ids || [];
-            remove_share("(" + ids.join(", ") + ")", function (result) {
-                if (result)
-                    res.status(200).send();
+            if (ids.length == 0)
+                res.status(200).send();
+            else
+                remove_share("(" + ids.join(", ") + ")", function (result) {
+                    if (result)
+                        res.status(200).send();
+                });
+        } else
+            res.status(403).send();
+    });
+});
+
+// (API) list stats by date
+app.get('/stats', function (req, res) {
+    check_auth(req, res, function (result) {
+        if (result) {
+            get_all_download_history(function (results) {
+                res.send(JSON.stringify({data: results}));
             });
         } else
             res.status(403).send();
@@ -344,7 +359,7 @@ var check_auth = function (req, res, result) {
         res.end('Access denied');
         return result(false);
     } else {
-        return result(true);
+        return result(user); //return the user, then user.name can be used
     }
 };
 
@@ -367,6 +382,7 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
             'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\''].join(';'), function (error, results, fields) {
             if (error) {
                 console.log(error);
+                return result(false);
             }
             return result(results);
         });
@@ -386,11 +402,11 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
             'SELECT COUNT(*) as total FROM shares'].join(';'), function (error, results, fields) {
             if (error) {
                 console.log(error);
+                return result(false);
             }
             return result(results);
         });
     }
-    return false;
 };
 
 var get_share_by_id = function (id, result) {
@@ -451,6 +467,16 @@ var add_download_history = function (file, address, result) {
             return result(false);
         }
         return result(true);
+    });
+};
+
+var get_all_download_history = function (result) {
+    pool.query('SELECT COUNT(*) AS `y`, DATE_FORMAT(download_history.`date`,"%Y-%m-%d") AS `x` FROM download_history GROUP BY `x`', function (error, results, fields) {
+        if (error) {
+            console.log(error);
+            return result(false);
+        }
+        return result(results);
     });
 };
 

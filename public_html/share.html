@@ -34,22 +34,33 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-12">
-                    <div class="btn-group pull-left">
-                        <h3>Shares</h3>
+                    <!-- Nav tabs -->
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li role="presentation" class="active"><a href="#shares_tab" aria-controls="shares_tab" role="tab" data-toggle="tab">Shares</a></li>
+                        <li role="presentation"><a href="#stats_tab" aria-controls="stats_tab" role="tab" data-toggle="tab">Stats</a></li>
+                    </ul>
+
+                    <!-- Tab panes -->
+                    <div class="tab-content">
+                        <div role="tabpanel" class="tab-pane active" id="shares_tab">
+                            <div id="toolbar" class="btn-group">
+                                <button type="button" class="btn btn-primary" id="add_share">
+                                    <i class="glyphicon glyphicon-paperclip"></i>
+                                </button>
+                                <button type="button" class="btn btn-success" id="upload">
+                                    <i class="glyphicon glyphicon-plus"></i>
+                                </button>
+                                <button type="button" class="btn btn-danger" id="remove_share">
+                                    <i class="glyphicon glyphicon-trash"></i>
+                                </button>
+                            </div>
+                            <table id="table_shares"></table>
+                        </div>
+                        <div role="tabpanel" class="tab-pane" id="stats_tab">
+                            <canvas id="stats_chart"></canvas>
+                        </div>
                     </div>
-                    <div style="clear: both"></div>
-                    <div id="toolbar" class="btn-group">
-                        <button type="button" class="btn btn-primary" id="add_share">
-                            <i class="glyphicon glyphicon-paperclip"></i>
-                        </button>
-                        <button type="button" class="btn btn-success" id="upload">
-                            <i class="glyphicon glyphicon-plus"></i>
-                        </button>
-                        <button type="button" class="btn btn-danger" id="remove_share">
-                            <i class="glyphicon glyphicon-trash"></i>
-                        </button>
-                    </div>
-                    <table id="table_shares"></table>
+
                 </div>
             </div>
         </div>
@@ -304,13 +315,15 @@
         <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.9.0/moment-with-locales.js"></script>
         <script src="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/src/js/bootstrap-datetimepicker.js"></script>
         <script src="https://blueimp.github.io/jQuery-File-Upload/js/jquery.fileupload.js"></script>
+        <script src="http://www.chartjs.org/dist/2.7.2/Chart.js"></script>
         <script>
             var downUrl = location.protocol + "//" + location.host + "/download";
             var count = 1;
+            var stats_chart;
+            var stats_data = [];
             $(document).ready(function () {
                 console.log("ready!");
-                // get url path
-                //load shares
+                //load shares table
                 $('#table_shares').bootstrapTable({//http://bootstrap-table.wenzhixin.net.cn/documentation/
                     classes: 'table table-hover table-condensed table-responsive',
                     toolbar: "#toolbar",
@@ -479,6 +492,12 @@
                         $('#progress .progress-bar').css('width', progress + '%');
                     }
                 }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
+                $('.nav-tabs a').on('shown.bs.tab', function (event) {
+                    if ($(this).attr('href') === '#stats_tab') {
+                        console.log('stats tab');
+                        updateChart();
+                    }
+                });
             });
 
             window.operateEvents = {// catch table events here !
@@ -690,6 +709,42 @@
                 $('#table_shares').bootstrapTable('refresh', {silent: true});
                 $('#create_link').html("Update link");
             }
+            function initChart() {
+                console.log(stats_data);
+                stats_chart = new Chart(document.getElementById("stats_chart"), {
+                    type: 'line',
+                    title: {
+                        text: "Download statistics"
+                    },
+                    data: {
+                        datasets: [{
+                                data: stats_data,
+                                borderColor: "#3e95cd",
+                                fill: false
+                            }]
+                    },
+                    options: {
+                        scales: {
+                            xAxes: [{
+                                    type: 'time',
+                                    time: {
+                                        unit: 'day',
+                                        unitStepSize: 1,
+                                        displayFormats: {
+                                            'day': 'MMM DD'
+                                        }
+                                    }
+                                }],
+                            yAxes: [{
+                                    ticks: {
+                                        min: 0,
+                                    }
+                                }]
+                        },
+                        legend: false
+                    }
+                });
+            }
             function compress(input, output) {
                 $.ajax({
                     url: '/compress',
@@ -738,6 +793,24 @@
                                 field: 'id',
                                 values: ids
                             });
+                        }
+                    }
+                });
+            }
+            function updateChart() {
+                $.ajax({
+                    url: '/stats',
+                    type: 'GET',
+                    contentType: 'application/json',
+                    success: function (data) {
+                        data = JSON.parse(data);
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            // TODO update chart
+                            console.log(data);
+                            stats_data = data.data;
+                            initChart();
                         }
                     }
                 });
