@@ -23,18 +23,24 @@
                             <p>Name : <code><%= name %></code></p>
                             <p>Size : <code><%= size %></code></p>
                             <% if (!password) { %>
-                            <p><a href="#" class="btn btn-success btn-lg" id="download" role="button">Click to download</a></p>
+                                <p><a href="#" class="btn btn-success btn-lg" id="download" role="button">Click to download</a></p>
                             <% } else { %>
-                            <p>This download is password protected !</p>
-                            <form action="">
-                                <div class="input-group">
-                                    <!--<input type="hidden" class="form-control" name="direct" value="false">-->
-                                    <input type="text" class="form-control" name="password" placeholder="Entre the password" autocomplete="off">
-                                    <span class="input-group-btn">
-                                        <button class="btn btn-default" type="submit">Click to download</button>
-                                    </span>
+                                <p>This download is password protected !</p>
+                            <% if (error) { %>
+                                <div class="alert alert-warning alert-dismissible" role="alert">
+                                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                    <%= error %>
                                 </div>
-                            </form>
+                            <% } %>
+                                <form action="">
+                                    <div class="input-group">
+                                        <!--<input type="hidden" class="form-control" name="direct" value="false">-->
+                                        <input type="text" class="form-control" name="password" placeholder="Entre the password" autocomplete="off">
+                                        <span class="input-group-btn">
+                                            <button class="btn btn-default" type="submit">Click to download</button>
+                                        </span>
+                                    </div>
+                                </form>
                             <% } %>
                         </div>
                     </div>

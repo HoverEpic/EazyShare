@@ -6,7 +6,7 @@ const mysql = require('mysql');
 const xss = require("xss");
 const express = require('express');
 const helmet = require('helmet');
-const fileUpload = require('express-fileupload');
+const fileUpload = require('jquery-file-upload-middleware');
 const path = require('path');
 const auth = require('basic-auth');
 const fs = require('fs-extra');
@@ -16,32 +16,48 @@ const zipFolder = require('zip-folder');
 // Constants TODO config env or file
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
-const BASE_URL = config.get('Config.Server.url');
 const PATH = config.get('Config.Paths.root_share');
 const USERNAME = "";
 const PASSWORD = "";
 const AUTH = {'username': {password: 'password'}};
 
 var app = express();
+
 // enable POST request decoding
 var bodyParser = require('body-parser');
 app.use(bodyParser.json());     // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({// to support URL-encoded bodies
     extended: true
 }));
+
 // templating
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
+
 //security
 app.use(helmet());
 app.disable('x-powered-by');
+
 //upload
 if (config.get('Config.Upload.enable')) {
-    app.use(fileUpload());
-    app.use(fileUpload({
-      limits: { fileSize: 50 * 1024 * config.get('Config.Upload.limit') }
-    }));
+    var uploadDir = PATH + '/uploads';
+    //create folder if not exists
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir);
+    }
+    //config
+    fileUpload.configure({
+        uploadDir: uploadDir,
+        uploadUrl: '/upload',
+        imageVersions: {
+            thumbnail: {
+                width: 80,
+                height: 80
+            }
+        }
+    });
 }
+app.use('/upload', fileUpload.fileHandler());
 
 var dbConfig = config.get('Config.Mysql');
 var pool = mysql.createPool(dbConfig);
@@ -119,7 +135,7 @@ app.get('/share', function (req, res) {
     });
 });
 
-// download the file by it's token (i)
+// download the file by it's token (token)
 app.get('/download/:token', function (req, res) {
     var token = req.params.token;
     var direct = req.query.direct || true;
@@ -133,6 +149,7 @@ app.get('/download/:token', function (req, res) {
                 if (err) {
                     res.status(404).send();
                     console.log(err);
+                    return;
                 } else {
                     var split = result.file.split("/");
                     var name = split[split.length - 1];
@@ -149,7 +166,8 @@ app.get('/download/:token', function (req, res) {
                         });
                     } else {
                         var fileSync = fs.statSync(result.file);
-                        res.render(path.join(__dirname + '/public/download'), {name: name, size: humanFileSize(fileSync.size, false), password: !passwordOK});
+                        var error = !passwordOK ? "Wrong password !" : false;
+                        res.render(path.join(__dirname + '/public/download'), {name: name, size: humanFileSize(fileSync.size, false), error: error, password: !passwordOK});
                     }
                 }
             });
@@ -190,14 +208,14 @@ app.put('/share', function (req, res) {
                     if (exists) {
                         update_share(id, file, token, time, count, password, function (result) {
                             if (result)
-                                res.send(JSON.stringify({file: file, url: BASE_URL + "/download/" + token}));
+                                res.send(JSON.stringify({file: file, token: token}));
                             else
                                 res.send(JSON.stringify({error: "An error occured !"}));
                         });
                     } else {
                         add_share(file, token, time, count, password, function (result) {
                             if (result)
-                                res.send(JSON.stringify({file: file, url: BASE_URL + "/download/" + token, showUrl: true}));
+                                res.send(JSON.stringify({file: file, token: token, showUrl: true}));
                             else
                                 res.send(JSON.stringify({error: "An error occured !"}));
                         });
@@ -206,7 +224,7 @@ app.put('/share', function (req, res) {
             } else {
                 add_share(file, token, time, count, password, function (result) {
                     if (result)
-                        res.send(JSON.stringify({file: file, url: BASE_URL + "/download/" + token, showUrl: true}));
+                        res.send(JSON.stringify({file: file, token: token, showUrl: true}));
                     else
                         res.send(JSON.stringify({error: "An error occured !"}));
                 });
@@ -302,18 +320,14 @@ app.post('/delete', function (req, res) {
 app.post('/upload', function (req, res) {
     check_auth(req, res, function (result) {
         if (result) {
-            if (!req.files)
-                return res.status(400).send('No files were uploaded.');
-            var file = req.body.file || null;
-            var name = req.body.path || "new_file";
-            var path = req.body.path || PATH;
-            // Use the mv() method to place the file somewhere on your server
-            sampleFile.mv(path + name, function (err) {
-                if (err)
-                    return res.status(500).send(err);
-
-                res.send(JSON.stringify({path: dir}));
-            });
+            upload.fileHandler({
+                uploadDir: function () {
+                    return __dirname + '/public/uploads/'
+                },
+                uploadUrl: function () {
+                    return '/uploads'
+                }
+            })(req, res, next);
         } else
             res.status(403).send();
     });

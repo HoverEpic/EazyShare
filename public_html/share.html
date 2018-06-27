@@ -42,6 +42,9 @@
                         <button type="button" class="btn btn-primary" id="add_share">
                             <i class="glyphicon glyphicon-paperclip"></i>
                         </button>
+                        <button type="button" class="btn btn-success" id="upload">
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </button>
                         <button type="button" class="btn btn-danger" id="remove_share">
                             <i class="glyphicon glyphicon-trash"></i>
                         </button>
@@ -115,16 +118,6 @@
                                             </tr>
                                         </tbody>
                                     </table>
-
-                                    <span class="btn btn-success fileinput-button">
-                                        <i class="glyphicon glyphicon-plus"></i>
-                                        <span>Upload files here...</span>
-                                        <!-- The file input field used as target for the file upload widget -->
-                                        <input id="fileupload" type="file" name="files[]" multiple="">
-                                    </span>
-                                    <div id="progress" class="progress">
-                                        <div class="progress-bar progress-bar-success"></div>
-                                    </div>
 
                                     <!-- pages files -->
                                     <!--<nav aria-label="Page navigation">
@@ -246,11 +239,43 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" id="comppress_button">Compress</button>
+                        <button type="button" class="btn btn-primary" id="compress_button">Compress</button>
                     </div>
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
         </div><!-- /.modal -->
+        <div class="modal fade" tabindex="-1" role="dialog" id="upload_modal">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">×</span><span class="sr-only">Close</span></button>
+                        <h4 class="modal-title">Load file(s)</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 col-md-offset-3">
+                                <span class="btn btn-success fileinput-button">
+                                    <i class="glyphicon glyphicon-plus"></i>
+                                    <span>Upload files</span>
+                                    <!-- The file input field used as target for the file upload widget -->
+                                    <input id="fileupload" type="file" name="files[]" multiple="">
+                                </span>
+                            </div>
+                            <div class="col-md-12">
+                                <br>
+                                <div id="progress" class="progress">
+                                    <div class="progress-bar progress-bar-success"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary bfd-ok">OK</button>
+                        <button type="button" class="btn btn-default bfd-cancel" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="modal fade" tabindex="-1" role="dialog" id="show_link_modal">
             <div class="modal-dialog" role="document">
                 <div class="modal-content">
@@ -269,7 +294,8 @@
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
         </div><!-- /.modal -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/js/bootstrap-select.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/bootstrap-table.min.js"></script>
@@ -433,6 +459,9 @@
                 $('#add_share_modal').on('hide.bs.modal', function () {
                     resetShareModal();
                 });
+                $('#upload').click(function () {
+                    $('#upload_modal').modal('show');
+                });
                 $('#fileupload').fileupload({
                     url: "/upload",
                     dataType: 'json',
@@ -504,7 +533,7 @@
                             console.log(data.error);
                         } else {
                             document.getElementById('breadcrumb').innerHTML = '';
-                            $('#breadcrumb').append('<li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon - refresh" aria-hidden="true"></span></a></li>');
+                            $('#breadcrumb').append('<li id="breadcrumb_refresh"><a href="#"><span class="glyphicon glyphicon-refresh" aria-hidden="true"></span></a></li>');
                             $("#breadcrumb_refresh").click(function () {
                                 updateFileExplorer(path);
                             });
@@ -541,6 +570,10 @@
                                 var path = $(this).html();
                                 updateFileExplorer(data.path + "/" + path);
                             });
+                            $('.refresh').click(function () {
+                                var path = $(this).html();
+                                updateFileExplorer(data.path + "/" + path);
+                            });
                             $(".button_share").click(function () {
                                 var path = $(this).parent().parent().attr("path");
                                 $('#file_path').html(path);
@@ -559,13 +592,12 @@
                             });
                             $(".button_delete").click(function () {
                                 var path = $(this).parent().parent().attr("path");
-                                console.log("share " + path);
                                 var r = confirm("You are deleting " + path);
                                 if (r == true) { //OK
                                     deletePath(path);
                                 }
                             });
-                            $('#comppress_button').click(function () {
+                            $('#compress_button').click(function () {
                                 compress($('#compressed_input').html(), $('#compressed_output').val());
                             });
                         }
@@ -613,10 +645,10 @@
                             $('#table_shares').bootstrapTable('refresh', {silent: true});
                             if (data.showUrl) {
                                 $('#file_name').html(data.file);
-                                $('#file_link').html(data.url);
-                                $('#file_link').attr("href", downUrl + "/" + row.token);
-                                $('#page_link').html(data.url + "?direct=false");
-                                $('#page_link').attr("href", downUrl + "/" + row.token + "?direct=false");
+                                $('#file_link').html(downUrl + "/" + data.token);
+                                $('#file_link').attr("href", downUrl + "/" + data.token);
+                                $('#page_link').html(downUrl + "/" + data.token + "?direct=false");
+                                $('#page_link').attr("href", downUrl + "/" + data.token + "?direct=false");
                                 $('#show_link_modal').modal('show');
                             }
                         }
