@@ -462,6 +462,7 @@
                 $('#upload').click(function () {
                     $('#upload_modal').modal('show');
                 });
+                $('#progress .progress-bar').hide();
                 $('#fileupload').fileupload({
                     url: "/upload",
                     dataType: 'json',
@@ -469,9 +470,12 @@
                         $.each(data.result.files, function (index, file) {
                             console.log("uploaded : " + file.name);
                         });
+                        $('#progress .progress-bar').hide();
                     },
                     progressall: function (e, data) {
                         var progress = parseInt(data.loaded / data.total * 100, 10);
+                        if (progress > 0)
+                            $('#progress .progress-bar').show();
                         $('#progress .progress-bar').css('width', progress + '%');
                     }
                 }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');

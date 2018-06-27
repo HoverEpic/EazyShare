@@ -39,8 +39,9 @@ app.use(helmet());
 app.disable('x-powered-by');
 
 //upload
+var uploadDir = null;
 if (config.get('Config.Upload.enable')) {
-    var uploadDir = PATH + '/uploads';
+    uploadDir = PATH + '/uploads';
     //create folder if not exists
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir);
@@ -48,16 +49,10 @@ if (config.get('Config.Upload.enable')) {
     //config
     fileUpload.configure({
         uploadDir: uploadDir,
-        uploadUrl: '/upload',
-        imageVersions: {
-            thumbnail: {
-                width: 80,
-                height: 80
-            }
-        }
+        uploadUrl: '/upload'
     });
 }
-app.use('/upload', fileUpload.fileHandler());
+//app.use('/upload', fileUpload.fileHandler());
 
 var dbConfig = config.get('Config.Mysql');
 var pool = mysql.createPool(dbConfig);
@@ -317,17 +312,10 @@ app.post('/delete', function (req, res) {
     });
 });
 // (API) remove file or folder
-app.post('/upload', function (req, res) {
+app.post('/upload', function (req, res, next) {
     check_auth(req, res, function (result) {
-        if (result) {
-            upload.fileHandler({
-                uploadDir: function () {
-                    return __dirname + '/public/uploads/'
-                },
-                uploadUrl: function () {
-                    return '/uploads'
-                }
-            })(req, res, next);
+        if (result && uploadDir !== null) {
+            fileUpload.fileHandler({})(req, res, next);
         } else
             res.status(403).send();
     });
