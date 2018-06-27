@@ -9,7 +9,8 @@
             "user": "root",
             "password": "root",
             "database": "eazyshare",
-            "connectionLimit": 10
+            "connectionLimit": 10,
+            "multipleStatements": true
         },
         "Server": {
             "port": 80,

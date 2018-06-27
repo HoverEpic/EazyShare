@@ -232,16 +232,18 @@ app.put('/share', function (req, res) {
 app.get('/listshares', function (req, res) {
     check_auth(req, res, function (result) {
         if (result) {
-            var limit = req.params.limit;
-            var offset = req.params.offset;
-            var order = req.params.order;
-            var sort = req.params.sort;
-            var search = req.params.search;
-            get_all_shares(limit, offset, order, sort, search, function (results) {
+            console.log(req.originalUrl);
+            var limit = req.query.limit || 10;
+            var offset = req.query.offset || 0;
+            var order = req.query.order || 'asc';
+            var sort = req.query.sort || 'id';
+            var search = req.query.search || '';
+            get_all_shares(limit, offset, order.toUpperCase(), sort, search, function (results) {
                 var rows = [];
-                var total = 10;
+                var total = 100;
                 if (results) {
-                    rows = results;
+                    rows = results[0];
+                    total = results[1][0].total;
                 }
                 res.send(JSON.stringify({rows: rows, total: total}));
             });
@@ -347,12 +349,48 @@ var check_auth = function (req, res, result) {
 };
 
 var get_all_shares = function (limit, offset, sort, order, search, result) {
-    pool.query('SELECT * FROM shares', function (error, results, fields) {
-        if (error) {
-            console.log(error);
-        }
-        return result(results);
-    });
+    if (search !== '') {
+        pool.query([
+            [
+                'SELECT',
+                'shares.*,',
+                'COUNT(download_history.id) AS total_downloads',
+                'FROM shares',
+
+                'LEFT JOIN download_history ON shares.id = download_history.id_share',
+
+                'WHERE shares.`file` LIKE \'%' + search + '%\' OR shares.token LIKE \'%' + search + '%\'',
+
+                'GROUP BY shares.id',
+                'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+            ].join(' '),
+            'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\''].join(';'), function (error, results, fields) {
+            if (error) {
+                console.log(error);
+            }
+            return result(results);
+        });
+    } else {
+        pool.query([
+            [
+                'SELECT',
+                'shares.*,',
+                'COUNT(download_history.id) AS total_downloads',
+                'FROM shares',
+
+                'LEFT JOIN download_history ON shares.id = download_history.id_share',
+
+                'GROUP BY shares.id',
+                'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+            ].join(' '),
+            'SELECT COUNT(*) as total FROM shares'].join(';'), function (error, results, fields) {
+            if (error) {
+                console.log(error);
+            }
+            return result(results);
+        });
+    }
+    return false;
 };
 
 var get_share_by_id = function (id, result) {
