@@ -1,0 +1,29 @@
+{
+    "Config": {
+        "Database": {
+            "type": "sqlite3"
+        },
+        "Sqlite3": {
+            "file": "config/database.db"
+        },
+        "Server": {
+            "port": 80,
+            "host": "0.0.0.0"
+        },
+        "Paths": {
+            "root_share": "/share"
+        },
+        "Upload": {
+            "enable": true,
+            "limit": 1024
+        },
+        "Users": {
+            "username": {
+                "password": "password"
+            },
+            "user2": {
+                "password": "pass2"
+            }
+        }
+    }
+}

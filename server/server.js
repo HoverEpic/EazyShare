@@ -3,6 +3,7 @@
 //init app
 const config = require('config');
 const mysql = require('mysql');
+const sqlite3 = require('sqlite3').verbose();
 const xss = require("xss");
 const express = require('express');
 const helmet = require('helmet');
@@ -14,6 +15,7 @@ const moment = require('moment');
 const zipFolder = require('zip-folder');
 
 // Constants TODO config env
+const isMysql = config.get('Config.Database.type') === "mysql";
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
 const PATH = config.get('Config.Paths.root_share');
@@ -54,50 +56,84 @@ if (config.get('Config.Upload.enable')) {
 }
 //app.use('/upload', fileUpload.fileHandler());
 
-var dbConfig = config.get('Config.Mysql');
-var pool = mysql.createPool(dbConfig);
+var database;
+if (isMysql) {
+    var dbConfig = config.get('Config.Mysql');
+    database = mysql.createPool(dbConfig);
+} else {
+    var dbFile = config.get('Config.Sqlite3.file');
+    database = new sqlite3.Database(dbFile, function (err) {
+        if (err !== null)
+            throw err;
+    });
+}
 
-pool.getConnection(function (err, connection) {
-    if (err)
-        throw err;
-    console.log("Connected to MYSQL server !");
-    //create the table if not exist
-    pool.query(['CREATE TABLE IF NOT EXISTS shares',
-        '( `id` int(11) NOT NULL AUTO_INCREMENT,',
-        '`file` text NOT NULL,',
-        '`token` text NOT NULL,',
-        '`creator` int(11) DEFAULT NULL,',
-        '`create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
-        '`limit_time` timestamp NULL DEFAULT NULL,',
-        '`limit_download` int(11) DEFAULT -1,',
-        '`password` varchar(50) DEFAULT NULL,',
-        '`active` tinyint(1) NOT NULL DEFAULT 1,',
-        'PRIMARY KEY (`id`))',
-        'ENGINE=InnoDB DEFAULT CHARSET=latin1'].join(' '), function (err, rows, fields) {
+if (isMysql) {
+    database.getConnection(function (err, connection) {
         if (err)
             throw err;
-
-        //close limited downloads, shedule
-        pool.query('SELECT COUNT(*) AS `count` FROM shares', function (err, rows, fields) {
+        console.log("Connected to MYSQL server !");
+        //create the table if not exist
+        database.query(['CREATE TABLE IF NOT EXISTS shares',
+            '( `id` int(11) NOT NULL AUTO_INCREMENT,',
+            '`file` text NOT NULL,',
+            '`token` text NOT NULL,',
+            '`creator` int(11) DEFAULT NULL,',
+            '`create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
+            '`limit_time` timestamp NULL DEFAULT NULL,',
+            '`limit_download` int(11) DEFAULT -1,',
+            '`password` varchar(50) DEFAULT NULL,',
+            '`active` tinyint(1) NOT NULL DEFAULT 1,',
+            'PRIMARY KEY (`id`))',
+            'ENGINE=InnoDB DEFAULT CHARSET=latin1'].join(' '), function (err, rows, fields) {
             if (err)
                 throw err;
-            console.log(rows[0].count + " registered shares !");
+
+            // TODO : close limited downloads, shedule
+            database.query('SELECT COUNT(*) AS `count` FROM shares', function (err, rows, fields) {
+                if (err)
+                    throw err;
+                console.log(rows[0].count + " registered shares !");
+            });
         });
-    });
 //    //create the history if not exist
-    pool.query(['CREATE TABLE IF NOT EXISTS download_history',
-        '( `id` int(11) NOT NULL AUTO_INCREMENT,',
-        '`file` text NOT NULL,',
-        '`id_share` int(11) NOT NULL,',
-        '`date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
-        'PRIMARY KEY (`id`))',
-        'ENGINE=InnoDB DEFAULT CHARSET=latin1'].join(' '), function (err, rows, fields) {
-        if (err)
+        database.query(['CREATE TABLE IF NOT EXISTS download_history',
+            '( `id` int(11) NOT NULL AUTO_INCREMENT,',
+            '`file` text NOT NULL,',
+            '`id_share` int(11) NOT NULL,',
+            '`date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
+            'PRIMARY KEY (`id`))',
+            'ENGINE=InnoDB DEFAULT CHARSET=latin1'].join(' '), function (err, rows, fields) {
+            if (err)
+                throw err;
+        });
+        console.log("Ready to handle queries.");
+        connection.release();
+    });
+} else {
+    database.run(['CREATE TABLE IF NOT EXISTS shares',
+        '(id INTEGER PRIMARY KEY AUTOINCREMENT,',
+        'file TEXT NOT NULL,',
+        'token TEXT NOT NULL,',
+        'creator INTEGER,',
+        'create_time INTEGER DEFAULT CURRENT_TIMESTAMP,',
+        'limit_time INTEGER,',
+        'limit_download INTEGER,',
+        'password CHAR(50),',
+        'active TINYINT DEFAULT 1)'].join(' '), function (err) {
+        if (err !== null)
             throw err;
     });
-    console.log("Ready to handle queries.");
-    connection.release();
-});
+    database.run(['CREATE TABLE if not exists download_history',
+        '(id INTEGER PRIMARY KEY AUTOINCREMENT,',
+        'file TEXT NOT NULL,',
+        'id_share INTEGER,',
+        'address CHAR(50) NOT NULL,',
+        'date INTEGER DEFAULT CURRENT_TIMESTAMP)'].join(' '), function (err) {
+        if (err !== null)
+            throw err;
+    });
+}
 
 // DEBUG
 //pool.on('acquire', function (connection) {
@@ -245,6 +281,9 @@ app.put('/share', function (req, res) {
 
             if (password === "")
                 password = null;
+
+            if (res._headerSent)
+                return;
 
             // protect token collision
             get_share_by_token(token, function (result) {
@@ -420,22 +459,226 @@ var check_auth = function (req, res, result) {
 
 var get_all_shares = function (limit, offset, sort, order, search, result) {
     if (search !== '') {
-        pool.query([
-            [
-                'SELECT',
-                'shares.*,',
-                'COUNT(download_history.id) AS total_downloads',
-                'FROM shares',
+        if (isMysql) {
+            database.query([
+                [
+                    'SELECT',
+                    'shares.*,',
+                    'COUNT(download_history.id) AS total_downloads',
+                    'FROM shares',
 
-                'LEFT JOIN download_history ON shares.id = download_history.id_share',
+                    'LEFT JOIN download_history ON shares.id = download_history.id_share',
 
-                'WHERE shares.`file` LIKE \'%' + search + '%\' OR shares.token LIKE \'%' + search + '%\'',
-                'WHERE shares.active = 1',
+                    'WHERE shares.`file` LIKE \'%' + search + '%\' OR shares.token LIKE \'%' + search + '%\'',
+                    'WHERE shares.active = 1',
 
-                'GROUP BY shares.id',
-                'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
-            ].join(' '),
-            'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\' WHERE shares.active = 1'].join(';'), function (error, results, fields) {
+                    'GROUP BY shares.id',
+                    'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+                ].join(' '),
+                'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\' WHERE shares.active = 1'].join(';'), function (error, results, fields) {
+                if (error) {
+                    console.log(error);
+                    return result(false);
+                }
+                return result(results);
+            });
+        } else {
+            database.all([
+                [
+                    'SELECT',
+                    'shares.*,',
+                    'COUNT(download_history.id) AS total_downloads',
+                    'FROM shares',
+
+                    'LEFT JOIN download_history ON shares.id = download_history.id_share',
+
+                    'WHERE shares.`file` LIKE \'%' + search + '%\' OR shares.token LIKE \'%' + search + '%\'',
+                    'WHERE shares.active = 1',
+
+                    'GROUP BY shares.id',
+                    'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+                ].join(' '),
+                'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\' WHERE shares.active = 1'].join(';'), function (error, results) {
+                if (error) {
+                    console.log(error);
+                    return result(false);
+                }
+                return result(results);
+            });
+        }
+    } else {
+        if (isMysql) {
+            database.query([
+                [
+                    'SELECT',
+                    'shares.*,',
+                    'COUNT(download_history.id) AS total_downloads',
+                    'FROM shares',
+
+                    'LEFT JOIN download_history ON shares.id = download_history.id_share',
+                    'WHERE shares.active = 1',
+
+                    'GROUP BY shares.id',
+                    'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+                ].join(' '),
+                'SELECT COUNT(*) as total FROM shares WHERE shares.active = 1'].join(';'), function (error, results, fields) {
+                if (error) {
+                    console.log(error);
+                    return result(false);
+                }
+                return result(results);
+            });
+        } else {
+            database.all([
+                [
+                    'SELECT',
+                    'shares.*,',
+                    'COUNT(download_history.id) AS total_downloads',
+                    'FROM shares',
+
+                    'LEFT JOIN download_history ON shares.id = download_history.id_share',
+                    'WHERE shares.active = 1',
+
+                    'GROUP BY shares.id',
+                    'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
+                ].join(' '),
+                'SELECT COUNT(*) as total FROM shares WHERE shares.active = 1'].join(';'), function (error, results) {
+                if (error) {
+                    console.log(error);
+                    return result(false);
+                }
+                return result(results);
+            });
+        }
+    }
+};
+
+var get_share_by_id = function (id, result) {
+    if (isMysql) {
+        database.query('SELECT * FROM shares WHERE `id` = ? LIMIT 0, 1', [id], function (error, results, fields) {
+            if (error) {
+                console.log(error);
+            }
+            if (results.length === 1)
+                return result(results[0]);
+            return result(false);
+        });
+    } else {
+        database.all('SELECT * FROM shares WHERE `id` = ? LIMIT 0, 1', [id], function (error, results) {
+            if (error) {
+                console.log(error);
+            }
+            if (results.length === 1)
+                return result(results[0]);
+            return result(false);
+        });
+    }
+};
+
+var get_share_by_file = function (file, result) {
+    if (isMysql) {
+        database.query('SELECT * FROM shares WHERE `file` = ?', [file], function (error, results, fields) {
+            if (error) {
+                console.log(error);
+            }
+            return result(results);
+        });
+    } else {
+        database.all('SELECT * FROM shares WHERE `file` = ?', [file], function (error, results) {
+            if (error) {
+                console.log(error);
+            }
+            return result(results);
+        });
+    }
+};
+
+var get_share_by_token = function (token, result) {
+    if (isMysql) {
+        database.query('SELECT * FROM shares WHERE `token` = ? AND `active` = 1 LIMIT 0, 1', [token], function (error, results, fields) {
+            if (error) {
+                console.log(error);
+            }
+            if (results.length === 1)
+                return result(results[0]);
+            return result(false);
+        });
+    } else {
+        database.get('SELECT * FROM shares WHERE token == ' + token + ' AND active == 1', function (error, results) {
+            if (error) {
+                console.log(error);
+            }
+            console.log(results);
+            if (results)
+                return result(results);
+            return result(false);
+        });
+    }
+};
+
+var add_share = function (file, token, time, count, password, result) {
+    if (isMysql) {
+        database.query('INSERT INTO shares SET ?', {file: file, token: token, limit_time: time, limit_download: count, password: password}, function (error, results, fields) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    } else {
+        database.run('INSERT INTO shares VALUES [file, token, limit_time, limit_download, password]' + '(' + [file, token, time, count, password].join(', ') + ')', function (error) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    }
+};
+
+var update_share = function (id, file, token, time, count, password, result) {
+    if (isMysql) {
+        database.query('UPDATE shares SET file = ?, token = ?, limit_time = ?, limit_download = ?, password = ? WHERE id = ?', [file, token, time, count, password, id], function (error, results, fields) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    } else {
+        database.run('UPDATE shares SET file = ?, token = ?, limit_time = ?, limit_download = ?, password = ? WHERE id = ?', [file, token, time, count, password, id], function (error, results) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    }
+};
+
+var add_download_history = function (file, address, result) {
+    if (isMysql) {
+        database.query('INSERT INTO download_history SET ?', {id_share: file.id, address: address}, function (error, results, fields) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    } else {
+        database.run('INSERT INTO download_history SET ?', {id_share: file.id, address: address}, function (error, results) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    }
+};
+
+var get_all_download_history = function (result) {
+    if (isMysql) {
+        database.query('SELECT COUNT(*) AS `y`, DATE_FORMAT(download_history.`date`,"%Y-%m-%d") AS `x` FROM download_history GROUP BY `x`', function (error, results, fields) {
             if (error) {
                 console.log(error);
                 return result(false);
@@ -443,20 +686,7 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
             return result(results);
         });
     } else {
-        pool.query([
-            [
-                'SELECT',
-                'shares.*,',
-                'COUNT(download_history.id) AS total_downloads',
-                'FROM shares',
-
-                'LEFT JOIN download_history ON shares.id = download_history.id_share',
-                'WHERE shares.active = 1',
-
-                'GROUP BY shares.id',
-                'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
-            ].join(' '),
-            'SELECT COUNT(*) as total FROM shares WHERE shares.active = 1'].join(';'), function (error, results, fields) {
+        database.run('SELECT COUNT(*) AS `y`, DATE_FORMAT(download_history.`date`,"%Y-%m-%d") AS `x` FROM download_history GROUP BY `x`', function (error, results) {
             if (error) {
                 console.log(error);
                 return result(false);
@@ -466,95 +696,44 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
     }
 };
 
-var get_share_by_id = function (id, result) {
-    pool.query('SELECT * FROM shares WHERE `id` = ? LIMIT 0, 1', [id], function (error, results, fields) {
-        if (error) {
-            console.log(error);
-        }
-        if (results.length === 1)
-            return result(results[0]);
-        return result(false);
-    });
-};
-
-var get_share_by_file = function (file, result) {
-    pool.query('SELECT * FROM shares WHERE `file` = ?', [file], function (error, results, fields) {
-        if (error) {
-            console.log(error);
-        }
-        return result(results);
-    });
-};
-
-var get_share_by_token = function (token, result) {
-    pool.query('SELECT * FROM shares WHERE `token` = ? AND `active` = 1 LIMIT 0, 1', [token], function (error, results, fields) {
-        if (error) {
-            console.log(error);
-        }
-        if (results.length === 1)
-            return result(results[0]);
-        return result(false);
-    });
-};
-
-var add_share = function (file, token, time, count, password, result) {
-    pool.query('INSERT INTO shares SET ?', {file: file, token: token, limit_time: time, limit_download: count, password: password}, function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(true);
-    });
-};
-
-var update_share = function (id, file, token, time, count, password, result) {
-    pool.query('UPDATE shares SET file = ?, token = ?, limit_time = ?, limit_download = ?, password = ? WHERE id = ?', [file, token, time, count, password, id], function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(true);
-    });
-};
-
-var add_download_history = function (file, address, result) {
-    pool.query('INSERT INTO download_history SET ?', {id_share: file.id, address: address}, function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(true);
-    });
-};
-
-var get_all_download_history = function (result) {
-    pool.query('SELECT COUNT(*) AS `y`, DATE_FORMAT(download_history.`date`,"%Y-%m-%d") AS `x` FROM download_history GROUP BY `x`', function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(results);
-    });
-};
-
 var get_download_count_by_id = function (id, result) {
-    pool.query('SELECT COUNT(id_share) AS `count` FROM download_history WHERE id_share = ?', [id], function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(results[0]);
-    });
+    if (isMysql) {
+        database.query('SELECT COUNT(id_share) AS `count` FROM download_history WHERE id_share = ?', [id], function (error, results, fields) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(results[0]);
+        });
+    } else {
+        database.query('SELECT COUNT(id_share) AS `count` FROM download_history WHERE id_share = ?', [id], function (error, results) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(results[0]);
+        });
+    }
 };
 
 var remove_share = function (ids, result) {
-    pool.query('UPDATE shares SET active = 0 WHERE id IN ' + ids, function (error, results, fields) {
-        if (error) {
-            console.log(error);
-            return result(false);
-        }
-        return result(true);
-    });
+    if (isMysql) {
+        database.query('UPDATE shares SET active = 0 WHERE id IN ' + ids, function (error, results, fields) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    } else {
+        database.query('UPDATE shares SET active = 0 WHERE id IN ' + ids, function (error, results) {
+            if (error) {
+                console.log(error);
+                return result(false);
+            }
+            return result(true);
+        });
+    }
 };
 
 function humanFileSize(bytes, si) {

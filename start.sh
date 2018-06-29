@@ -7,7 +7,7 @@ fi
 
 if [ ! -f "config/default.json" ]; then
     echo "Copying default config"
-    cp sample_config/default.json config
+    cp sample_config/mysql.json config/default.json
 fi
 
 echo "Starting node"
