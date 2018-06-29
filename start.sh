@@ -5,6 +5,11 @@ if [ ! -d "config" ]; then
     mkdir config
 fi
 
+if [ ! -d "/share" ]; then
+    echo "Creating share dir"
+    mkdir /config
+fi
+
 if [ ! -f "config/default.json" ]; then
     echo "Copying default config"
     cp sample_config/default.json config
