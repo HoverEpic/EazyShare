@@ -143,11 +143,10 @@ app.get('/download/:token', function (req, res) {
             var allow = true;
             //check time limit
             if (result.limit_time >= result.create_time) {
-                console.log("token " + token + " expired !");
                 res.status(404).send();
                 remove_share("(" + result.id + ")", function (result2) {
-                    if (result2)
-                        console.log("share " + result.id + " removed !");
+//                    if (result2)
+//                        console.log("share " + result.id + " removed !");
                 });
                 return;
             }
@@ -156,11 +155,10 @@ app.get('/download/:token', function (req, res) {
                 if (result2) {
                     console.log(result2.count + ' / ' + result.limit_download);
                     if (result2.count >= result.limit_download) {
-                        console.log("too many downloads for  " + result.id + " !");
                         res.status(404).send();
                         remove_share("(" + result.id + ")", function (result3) {
-                            if (result3)
-                                console.log("share " + result.id + " removed !");
+//                            if (result3)
+//                                console.log("share " + result.id + " removed !");
                         });
                         return;
                     }

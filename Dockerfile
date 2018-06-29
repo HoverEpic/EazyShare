@@ -13,8 +13,9 @@ RUN npm install --save
 # RUN npm install --only=production
 
 COPY public_html public
-COPY config config
+COPY sample_config sample_config
+COPY start.sh start.sh
 COPY server .
 
 EXPOSE 80
-CMD [ "npm", "start" ]
+CMD [ "/bin/bash", "start.sh"]

@@ -1,3 +1,14 @@
 #! /bin/bash
 
-./docker_build.sh && docker run --rm -ti -v /home/vincent/git/EazyShare/share:/share -p 80:80 epicblox/eazyshare
+if [ ! -d "config" ]; then
+    echo "Creating config dir"
+    mkdir config
+fi
+
+if [ ! -f "config/default.json" ]; then
+    echo "Copying default config"
+    cp sample_config/default.json config
+fi
+
+echo "Starting node"
+npm start
