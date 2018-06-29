@@ -19,7 +19,7 @@ const HOST = config.get('Config.Server.host');
 const PATH = config.get('Config.Paths.root_share');
 const USERNAME = "";
 const PASSWORD = "";
-const AUTH = {'username': {password: 'password'}};
+const AUTH = config.get('Config.Users');
 
 var app = express();
 
@@ -89,6 +89,7 @@ pool.getConnection(function (err, connection) {
         '( `id` int(11) NOT NULL AUTO_INCREMENT,',
         '`file` text NOT NULL,',
         '`id_share` int(11) NOT NULL,',
+        '`address` varchar(50) NOT NULL,',
         '`date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
         'PRIMARY KEY (`id`))',
         'ENGINE=InnoDB DEFAULT CHARSET=latin1'].join(' '), function (err, rows, fields) {
@@ -412,6 +413,8 @@ var check_auth = function (req, res, result) {
         res.statusCode = 401;
         res.setHeader('WWW-Authenticate', 'Basic realm="example"');
         res.end('Access denied');
+        var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+        console.log("access denied for " + ip + " user=" + user.name);
         return result(false);
     } else {
         return result(user); //return the user, then user.name can be used
