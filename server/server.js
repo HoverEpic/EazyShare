@@ -140,7 +140,37 @@ app.get('/download/:token', function (req, res) {
         if (!result)
             res.status(404).send();
         else {
-            //TODO check time limit
+            var allow = true;
+            //check time limit
+            if (result.limit_time >= result.create_time) {
+                console.log("token " + token + " expired !");
+                res.status(404).send();
+                remove_share("(" + result.id + ")", function (result2) {
+                    if (result2)
+                        console.log("share " + result.id + " removed !");
+                });
+                return;
+            }
+            //check count download
+            get_download_count_by_id(result.id, function (result2) {
+                if (result2) {
+                    console.log(result2.count + ' / ' + result.limit_download);
+                    if (result2.count >= result.limit_download) {
+                        console.log("too many downloads for  " + result.id + " !");
+                        res.status(404).send();
+                        remove_share("(" + result.id + ")", function (result3) {
+                            if (result3)
+                                console.log("share " + result.id + " removed !");
+                        });
+                        return;
+                    }
+                }
+            });
+
+            if (res._headerSent)
+                return;
+
+            //TODO check count
             fs.readFile(result.file, function (err, content) {
                 if (err) {
                     res.status(404).send();
@@ -153,12 +183,30 @@ app.get('/download/:token', function (req, res) {
                     if (result.password === password) {
                         passwordOK = true;
                     }
+
+                    if (res._headerSent)
+                        return;
+
                     if (direct === true && passwordOK) {
                         var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
                         add_download_history(result, ip, function () {
                             //specify Content will be an attachment
                             res.setHeader('Content-disposition', 'attachment; filename=' + name);
                             res.end(content);
+
+                            //check count download
+                            get_download_count_by_id(result.id, function (result2) {
+                                if (result2) {
+                                    if (result2.count >= result.limit_download) {
+                                        console.log("stop sending " + result.id + " !");
+                                        remove_share("(" + result.id + ")", function (result3) {
+                                            if (result3)
+                                                console.log("share " + result.id + " removed !");
+                                        });
+                                        return;
+                                    }
+                                }
+                            });
                         });
                     } else {
                         var fileSync = fs.statSync(result.file);
@@ -166,6 +214,7 @@ app.get('/download/:token', function (req, res) {
                         res.render(path.join(__dirname + '/public/download'), {name: name, size: humanFileSize(fileSync.size, false), error: error, password: !passwordOK});
                     }
                 }
+
             });
         }
     });
@@ -198,6 +247,14 @@ app.put('/share', function (req, res) {
 
             if (password === "")
                 password = null;
+
+            // protect token collision
+            get_share_by_token(token, function (result) {
+                if (!result) {
+                    res.send(JSON.stringify({error: "Token already exist !"}));
+                    return;
+                }
+            });
 
             if (id !== 0) {
                 get_share_by_id(id, function (exists) {
@@ -375,11 +432,12 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
                 'LEFT JOIN download_history ON shares.id = download_history.id_share',
 
                 'WHERE shares.`file` LIKE \'%' + search + '%\' OR shares.token LIKE \'%' + search + '%\'',
+                'WHERE shares.active = 1',
 
                 'GROUP BY shares.id',
                 'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
             ].join(' '),
-            'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\''].join(';'), function (error, results, fields) {
+            'SELECT COUNT(*) as total FROM shares WHERE file LIKE \'%' + search + '%\' OR token LIKE \'%' + search + '%\' WHERE shares.active = 1'].join(';'), function (error, results, fields) {
             if (error) {
                 console.log(error);
                 return result(false);
@@ -395,11 +453,12 @@ var get_all_shares = function (limit, offset, sort, order, search, result) {
                 'FROM shares',
 
                 'LEFT JOIN download_history ON shares.id = download_history.id_share',
+                'WHERE shares.active = 1',
 
                 'GROUP BY shares.id',
                 'ORDER BY ' + order + ' ' + sort + ' LIMIT ' + offset + ', ' + limit
             ].join(' '),
-            'SELECT COUNT(*) as total FROM shares'].join(';'), function (error, results, fields) {
+            'SELECT COUNT(*) as total FROM shares WHERE shares.active = 1'].join(';'), function (error, results, fields) {
             if (error) {
                 console.log(error);
                 return result(false);
@@ -430,7 +489,7 @@ var get_share_by_file = function (file, result) {
 };
 
 var get_share_by_token = function (token, result) {
-    pool.query('SELECT * FROM shares WHERE `token` = ? LIMIT 0, 1', [token], function (error, results, fields) {
+    pool.query('SELECT * FROM shares WHERE `token` = ? AND `active` = 1 LIMIT 0, 1', [token], function (error, results, fields) {
         if (error) {
             console.log(error);
         }
@@ -477,6 +536,16 @@ var get_all_download_history = function (result) {
             return result(false);
         }
         return result(results);
+    });
+};
+
+var get_download_count_by_id = function (id, result) {
+    pool.query('SELECT COUNT(id_share) AS `count` FROM download_history WHERE id_share = ?', [id], function (error, results, fields) {
+        if (error) {
+            console.log(error);
+            return result(false);
+        }
+        return result(results[0]);
     });
 };
 

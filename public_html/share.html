@@ -190,7 +190,7 @@
                                                 <span class="input-group-btn">
                                                     <button type="button" class="btn btn-default" id="download_limited_count_rem"> - </button>
                                                 </span>
-                                                <input type="text" class="form-control" id="download_limited_count" value="0">
+                                                <input type="text" class="form-control" id="download_limited_count" value="1">
                                                 <span class="input-group-btn">
                                                     <button type="button" class="btn btn-default" id="download_limited_count_add"> + </button>
                                                 </span>
@@ -361,11 +361,10 @@
                             field: 'limit_time',
                             title: 'Limit Time',
                             formatter: dateFormat
-                        }, {field: 'limit_download',
-                            title: 'Limit Download'
                         }, {
                             field: 'total_downloads',
-                            title: 'Downloads'
+                            title: 'Downloads',
+                            formatter: downloadFormat
                         }, {
                             field: 'password',
                             title: 'Password',
@@ -394,6 +393,13 @@
                         '<i class="glyphicon glyphicon-link"></i> Link',
                         '</button> '
                     ].join('');
+                }
+                function downloadFormat(value, row, index) {
+                    if (row.limit_download > 0)
+                        return row.total_downloads + ' / ' + row.limit_download;
+                    else
+                        return row.total_downloads;
+                    return "";
                 }
                 function passwordFormat(value, row, index) {
                     if (value !== null)
@@ -462,10 +468,6 @@
                 $("#remove_share").click(function () {
                     var ids = $.map($('#table_shares').bootstrapTable('getSelections'), function (row) {
                         return row.id;
-                    });
-                    $('#table_shares').bootstrapTable('remove', {
-                        field: 'id',
-                        values: ids
                     });
                     removeLink(ids);
                 });
@@ -793,6 +795,7 @@
                                 field: 'id',
                                 values: ids
                             });
+                            $('#table_shares').bootstrapTable('refresh');
                         }
                     }
                 });
@@ -807,7 +810,6 @@
                         if (data.error) {
                             console.log(data.error);
                         } else {
-                            // TODO update chart
                             console.log(data);
                             stats_data = data.data;
                             initChart();
