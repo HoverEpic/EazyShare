@@ -336,10 +336,13 @@ app.post('/compress', function (req, res) {
         if (result) {
             var input = req.body.input || null;
             var output = req.body.output || null;
+            console.log("Starting compression of : " + output);
             zipFolder(input, output, function (err) {
                 if (err) {
+                    console.log("Failed compression of : " + output);
                     res.send(JSON.stringify({error: err}));
                 } else {
+                    console.log("Successfull compression of : " + output);
                     var dir = path.dirname(output).split(path.sep).pop();
                     res.send(JSON.stringify({input: input, output: output, path: dir}));
                 }

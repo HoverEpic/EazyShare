@@ -65,7 +65,7 @@
             </div>
         </div>
         <div class="modal fade" tabindex="-1" role="dialog" id="add_share_modal">
-            <div class="modal-dialog" role="document">
+            <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -101,7 +101,7 @@
                                         <th>date</th>
                                         <th>options</th>
                                         </thead>
-                                        <tbody>
+                                        <tbody id="files_table">
                                             <tr>
                                                 <td><span class="glyphicon glyphicon-send" aria-hidden="true"></span> Dockerfile</td>
                                                 <td>50 ko</td>
@@ -244,8 +244,8 @@
                     <div class="modal-body">
                         <p>File or folder : <code id="compressed_input"></code></p>
                         <p>Result : </p><div class="form-group">
-                            <label for="exampleInputEmail1">Email address</label>
-                            <input type="email" class="form-control" id="compressed_output" placeholder="Email">
+                            <label for="exampleInputEmail1">Output :</label>
+                            <input type="text" class="form-control" id="compressed_output" placeholder="Path">
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -281,14 +281,13 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary bfd-ok">OK</button>
                         <button type="button" class="btn btn-default bfd-cancel" data-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
         </div>
         <div class="modal fade" tabindex="-1" role="dialog" id="show_link_modal">
-            <div class="modal-dialog" role="document">
+            <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -319,6 +318,7 @@
         <script>
             var downUrl = location.protocol + "//" + location.host + "/download";
             var count = 1;
+            var compressing = false;
             var stats_chart;
             var stats_data = [];
             $(document).ready(function () {
@@ -577,7 +577,13 @@
                                 var path = $(this).attr("folder");
                                 updateFileExplorer(path);
                             });
+                            // fastest way to clean listeners
+                            var old_element = document.getElementById("files_table");
+                            var new_element = old_element.cloneNode(true);
+                            old_element.parentNode.replaceChild(new_element, old_element);
+                            // clear table
                             $('#files tbody').html('');
+
                             for (var i = 0; i < data.files.length; i++) {
                                 var file = data.files[i];
                                 $('#files tbody').append(['<tr path="' + file.path + '">',
@@ -748,20 +754,31 @@
                 });
             }
             function compress(input, output) {
-                $.ajax({
-                    url: '/compress',
-                    type: 'POST',
-                    data: JSON.stringify({input: input, output: output}),
-                    contentType: 'application/json',
-                    success: function (data) {
-                        if (data.error) {
-                            console.log(data.error);
-                        } else {
-                            updateFileExplorer(data.path);
-                            $('#compress_modal').modal('hide');
+                //protect spaming compression
+                if (!compressing) {
+                    compressing = true;
+
+                    $('#compress_button').addClass("disabled");
+                    $('#compress_button').attr("disabled", true);
+                    $.ajax({
+                        url: '/compress',
+                        type: 'POST',
+                        data: JSON.stringify({input: input, output: output}),
+                        contentType: 'application/json',
+                        success: function (data) {
+                            if (data.error) {
+                                console.log(data.error);
+                            } else {
+                                updateFileExplorer(data.path);
+                                $('#compress_modal').modal('hide');
+                            }
+
+                            $('#compress_button').removeClass("disabled");
+                            $('#compress_button').removeAttr("disabled", true);
+                            compressing = false;
                         }
-                    }
-                });
+                    });
+                }
             }
             function deletePath(path) {
                 $.ajax({
