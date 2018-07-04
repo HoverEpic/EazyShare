@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/ash
 
 if [ ! -d "config" ]; then
     echo "Creating config dir"
@@ -16,4 +16,4 @@ if [ ! -f "config/default.json" ]; then
 fi
 
 echo "Starting node"
-npm start
+pm2-runtime server.js -u www:data

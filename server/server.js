@@ -600,3 +600,9 @@ var deleteFolderRecursive = function (path) {
 app.listen(PORT, HOST, function () {
     console.log(`Running on http://${HOST}:${PORT}`);
 });
+
+process.on('SIGINT', function () {
+    app.close(function (err) {
+        process.exit(err ? 1 : 0);
+    });
+});
