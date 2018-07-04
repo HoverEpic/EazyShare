@@ -17,8 +17,6 @@ const zipFolder = require('zip-folder');
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
 const PATH = config.get('Config.Paths.root_share');
-const USERNAME = "";
-const PASSWORD = "";
 const AUTH = config.get('Config.Users');
 
 var app = express();
@@ -52,7 +50,6 @@ if (config.get('Config.Upload.enable')) {
         uploadUrl: '/upload'
     });
 }
-//app.use('/upload', fileUpload.fileHandler());
 
 var dbConfig = config.get('Config.Mysql');
 var pool = mysql.createPool(dbConfig);
@@ -141,7 +138,6 @@ app.get('/download/:token', function (req, res) {
         if (!result)
             res.status(404).send();
         else {
-            var allow = true;
             //check time limit
             if (result.limit_time >= result.create_time) {
                 res.status(404).send();
@@ -417,7 +413,7 @@ var check_auth = function (req, res, result) {
         console.log("access denied for " + ip + " user=" + user.name);
         return result(false);
     } else {
-        return result(user); //return the user, then user.name can be used
+        return result(user);
     }
 };
 
