@@ -642,9 +642,9 @@ var compress = function (input, outputFile, callback) {
     directorySize(input, function (err, totalSize) {
         var prettyTotalSize = bytesToSize(totalSize);
 
-        output.on('close', function () {
-            callback();
-        });
+//        output.on('close', function () {
+//            callback();
+//        });
 
         archive.on('progress', function (progress) {
             var percent = 100 - ((totalSize - progress.fs.processedBytes) / totalSize) * 100;
