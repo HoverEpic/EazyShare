@@ -760,12 +760,14 @@
 
                     $('#compress_button').addClass("disabled");
                     $('#compress_button').attr("disabled", true);
+
                     $.ajax({
                         url: '/compress',
                         type: 'POST',
                         data: JSON.stringify({input: input, output: output}),
                         contentType: 'application/json',
                         success: function (data) {
+                            console.log(data);
                             if (data.error) {
                                 console.log(data.error);
                             } else {
