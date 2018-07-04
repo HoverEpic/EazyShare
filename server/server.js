@@ -246,7 +246,7 @@ app.put('/share', function (req, res) {
 
             // protect token collision
             get_share_by_token(token, function (result) {
-                if (!result) {
+                if (result) {
                     res.send(JSON.stringify({error: "Token already exist !"}));
                     return;
                 }
