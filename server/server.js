@@ -132,7 +132,7 @@ app.get('/share', function (req, res) {
 
 // download the file by it's token (token)
 app.get('/download/:token', function (req, res) {
-    var start = Date.now();
+//    var start = Date.now();
     var token = req.params.token;
     var direct = req.query.direct || true;
     var password = req.query.password || null;
@@ -141,7 +141,7 @@ app.get('/download/:token', function (req, res) {
         if (!result)
             res.status(404).send();
         else {
-            console.log("get_share_by_token " + Math.floor((Date.now() - start)) + " ms");
+//            console.log("get_share_by_token " + Math.floor((Date.now() - start)) + " ms");
             //check time limit
             if (result.limit_time >= result.create_time) {
                 res.status(404).send();
@@ -156,7 +156,7 @@ app.get('/download/:token', function (req, res) {
                 if (result2) {
                     if (result.limit_download === -1)
                         return;
-                    console.log(result2.count + ' / ' + result.limit_download);
+//                    console.log(result2.count + ' / ' + result.limit_download);
                     if (result2.count >= result.limit_download) {
                         res.status(404).send();
                         remove_share("(" + result.id + ")", function (result3) {
@@ -171,7 +171,7 @@ app.get('/download/:token', function (req, res) {
             if (res._headerSent)
                 return;
 
-            console.log("fs.readFile " + Math.floor((Date.now() - start)) + " ms");
+//            console.log("fs.readFile " + Math.floor((Date.now() - start)) + " ms");
             var split = result.file.split("/");
             var name = split[split.length - 1];
             var passwordOK = false;
@@ -185,7 +185,7 @@ app.get('/download/:token', function (req, res) {
             if (direct === true && passwordOK) {
                 var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
                 add_download_history(result, ip, function () {
-                    console.log("add_download_history " + Math.floor((Date.now() - start)) + " ms");
+//                    console.log("add_download_history " + Math.floor((Date.now() - start)) + " ms");
                     //specify Content will be an attachment
                     console.log('Starting download: ' + result.file);
                     var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
@@ -523,7 +523,7 @@ var update_share = function (id, file, token, time, count, password, result) {
 };
 
 var add_download_history = function (file, address, result) {
-    pool.query('INSERT INTO download_history SET ?', {id_share: file.id, address: address}, function (error, results, fields) {
+    pool.query('INSERT INTO download_history SET ?', {file: file.file, id_share: file.id, address: address}, function (error, results, fields) {
         if (error) {
             console.log(error);
             return result(false);
