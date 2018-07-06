@@ -64,6 +64,7 @@ pool.getConnection(function (err, connection) {
         '( `id` int(11) NOT NULL AUTO_INCREMENT,',
         '`file` text NOT NULL,',
         '`token` text NOT NULL,',
+        '`size` varchar(10) NOT NULL,',
         '`creator` int(11) DEFAULT NULL,',
         '`create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,',
         '`limit_time` timestamp NULL DEFAULT NULL,',
@@ -131,6 +132,7 @@ app.get('/share', function (req, res) {
 
 // download the file by it's token (token)
 app.get('/download/:token', function (req, res) {
+    var start = Date.now();
     var token = req.params.token;
     var direct = req.query.direct || true;
     var password = req.query.password || null;
@@ -139,24 +141,27 @@ app.get('/download/:token', function (req, res) {
         if (!result)
             res.status(404).send();
         else {
+            console.log("get_share_by_token " + Math.floor((Date.now() - start)) + " ms");
             //check time limit
             if (result.limit_time >= result.create_time) {
                 res.status(404).send();
                 remove_share("(" + result.id + ")", function (result2) {
-//                    if (result2)
-//                        console.log("share " + result.id + " removed !");
+                    if (result2)
+                        console.log("share " + result.id + " removed !");
                 });
                 return;
             }
             //check count download
             get_download_count_by_id(result.id, function (result2) {
                 if (result2) {
+                    if (result.limit_download === -1)
+                        return;
                     console.log(result2.count + ' / ' + result.limit_download);
                     if (result2.count >= result.limit_download) {
                         res.status(404).send();
                         remove_share("(" + result.id + ")", function (result3) {
-//                            if (result3)
-//                                console.log("share " + result.id + " removed !");
+                            if (result3)
+                                console.log("share " + result.id + " removed !");
                         });
                         return;
                     }
@@ -166,52 +171,48 @@ app.get('/download/:token', function (req, res) {
             if (res._headerSent)
                 return;
 
-            //TODO check count
-            fs.readFile(result.file, function (err, content) {
-                if (err) {
-                    res.status(404).send();
-                    console.log(err);
-                    return;
-                } else {
-                    var split = result.file.split("/");
-                    var name = split[split.length - 1];
-                    var passwordOK = false;
-                    if (result.password === password) {
-                        passwordOK = true;
-                    }
+            console.log("fs.readFile " + Math.floor((Date.now() - start)) + " ms");
+            var split = result.file.split("/");
+            var name = split[split.length - 1];
+            var passwordOK = false;
+            if (result.password === password) {
+                passwordOK = true;
+            }
 
-                    if (res._headerSent)
-                        return;
+            if (res._headerSent)
+                return;
 
-                    if (direct === true && passwordOK) {
-                        var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-                        add_download_history(result, ip, function () {
-                            //specify Content will be an attachment
-                            res.setHeader('Content-disposition', 'attachment; filename=' + name);
-                            res.end(content);
+            if (direct === true && passwordOK) {
+                var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+                add_download_history(result, ip, function () {
+                    console.log("add_download_history " + Math.floor((Date.now() - start)) + " ms");
+                    //specify Content will be an attachment
+                    console.log('Starting download: ' + result.file);
+                    var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
+                    res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                    stream.pipe(res);
+//                            res.end(content);
 
-                            //check count download
-                            get_download_count_by_id(result.id, function (result2) {
-                                if (result2) {
-                                    if (result2.count >= result.limit_download) {
-                                        console.log("stop sending " + result.id + " !");
-                                        remove_share("(" + result.id + ")", function (result3) {
-                                            if (result3)
-                                                console.log("share " + result.id + " removed !");
-                                        });
-                                        return;
-                                    }
-                                }
-                            });
-                        });
-                    } else {
-                        var fileSync = fs.statSync(result.file);
-                        var error = !passwordOK ? "Wrong password !" : false;
-                        res.render(path.join(__dirname + '/public/download'), {name: name, size: humanFileSize(fileSync.size, false), error: error, password: !passwordOK});
-                    }
-                }
-
-            });
+                    //check count download
+                    get_download_count_by_id(result.id, function (result2) {
+                        if (result2) {
+                            if (result.limit_download === -1)
+                                return;
+                            if (result2.count >= result.limit_download) {
+                                console.log("stop sending " + result.id + " !");
+                                remove_share("(" + result.id + ")", function (result3) {
+                                    if (result3)
+                                        console.log("share " + result.id + " removed !");
+                                });
+                                return;
+                            }
+                        }
+                    });
+                });
+            } else {
+                var error = !passwordOK ? "Wrong password !" : false;
+                res.render(path.join(__dirname + '/public/download'), {name: name, size: result.size, error: error, password: !passwordOK});
+            }
         }
     });
 });
@@ -222,6 +223,7 @@ app.put('/share', function (req, res) {
         if (result) {
             var id = req.body.id || 0;
             var file = req.body.file || "";
+            var size = req.body.size || 0;
             var time = req.body.time || null;
             var count = req.body.count || -1;
             var token = req.body.token || "";
@@ -262,7 +264,7 @@ app.put('/share', function (req, res) {
                                 res.send(JSON.stringify({error: "An error occured !"}));
                         });
                     } else {
-                        add_share(file, token, time, count, password, function (result) {
+                        add_share(file, size, token, time, count, password, function (result) {
                             if (result)
                                 res.send(JSON.stringify({file: file, token: token, showUrl: true}));
                             else
@@ -271,7 +273,7 @@ app.put('/share', function (req, res) {
                     }
                 });
             } else {
-                add_share(file, token, time, count, password, function (result) {
+                add_share(file, size, token, time, count, password, function (result) {
                     if (result)
                         res.send(JSON.stringify({file: file, token: token, showUrl: true}));
                     else
@@ -414,7 +416,7 @@ var check_auth = function (req, res, result) {
         res.setHeader('WWW-Authenticate', 'Basic realm="example"');
         res.end('Access denied');
         var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-        console.log("access denied for " + ip + " user=" + user.name);
+        console.log("access denied for " + ip + " user=" + (!user ? "undefined" : user.name));
         return result(false);
     } else {
         return result(user);
@@ -500,8 +502,8 @@ var get_share_by_token = function (token, result) {
     });
 };
 
-var add_share = function (file, token, time, count, password, result) {
-    pool.query('INSERT INTO shares SET ?', {file: file, token: token, limit_time: time, limit_download: count, password: password}, function (error, results, fields) {
+var add_share = function (file, size, token, time, count, password, result) {
+    pool.query('INSERT INTO shares SET ?', {file: file, size: size, token: token, limit_time: time, limit_download: count, password: password}, function (error, results, fields) {
         if (error) {
             console.log(error);
             return result(false);
@@ -664,10 +666,6 @@ var compress = function (input, outputFile, callback) {
 
         archive.pipe(output);
 
-
-//        archive.bulk([
-//            {cwd: input, src: ['**/*'], expand: true}
-//        ]);
         archive.directory(input);
 
         archive.finalize(function (err, bytes) {
@@ -698,7 +696,5 @@ app.listen(PORT, HOST, function () {
 });
 
 process.on('SIGINT', function () {
-    app.close(function (err) {
-        process.exit(err ? 1 : 0);
-    });
+    process.exit(0);
 });

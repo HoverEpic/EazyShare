@@ -21,6 +21,9 @@
             .fixed-table-toolbar .btn {
                 height: 34px;
             }
+            .modal-xl {
+                width: 1000px;
+            }
         </style>
     </head>
     <body>
@@ -31,41 +34,36 @@
                 </div>
             </div>
         </nav>
-        <div class="container">
-            <div class="row">
-                <div class="col-md-12">
-                    <!-- Nav tabs -->
-                    <ul class="nav nav-tabs" role="tablist">
-                        <li role="presentation" class="active"><a href="#shares_tab" aria-controls="shares_tab" role="tab" data-toggle="tab">Shares</a></li>
-                        <li role="presentation"><a href="#stats_tab" aria-controls="stats_tab" role="tab" data-toggle="tab">Stats</a></li>
-                    </ul>
+        <div class="container-fluid">
+            <!-- Nav tabs -->
+            <ul class="nav nav-tabs" role="tablist">
+                <li role="presentation" class="active"><a href="#shares_tab" aria-controls="shares_tab" role="tab" data-toggle="tab">Shares</a></li>
+                <li role="presentation"><a href="#stats_tab" aria-controls="stats_tab" role="tab" data-toggle="tab">Stats</a></li>
+            </ul>
 
-                    <!-- Tab panes -->
-                    <div class="tab-content">
-                        <div role="tabpanel" class="tab-pane active" id="shares_tab">
-                            <div id="toolbar" class="btn-group">
-                                <button type="button" class="btn btn-primary" id="add_share">
-                                    <i class="glyphicon glyphicon-paperclip"></i>
-                                </button>
-                                <button type="button" class="btn btn-success" id="upload">
-                                    <i class="glyphicon glyphicon-plus"></i>
-                                </button>
-                                <button type="button" class="btn btn-danger" id="remove_share">
-                                    <i class="glyphicon glyphicon-trash"></i>
-                                </button>
-                            </div>
-                            <table id="table_shares"></table>
-                        </div>
-                        <div role="tabpanel" class="tab-pane" id="stats_tab">
-                            <canvas id="stats_chart"></canvas>
-                        </div>
+            <!-- Tab panes -->
+            <div class="tab-content">
+                <div role="tabpanel" class="tab-pane active" id="shares_tab">
+                    <div id="toolbar" class="btn-group">
+                        <button type="button" class="btn btn-primary" id="add_share">
+                            <i class="glyphicon glyphicon-paperclip"></i>
+                        </button>
+                        <button type="button" class="btn btn-success" id="upload">
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </button>
+                        <button type="button" class="btn btn-danger" id="remove_share">
+                            <i class="glyphicon glyphicon-trash"></i>
+                        </button>
                     </div>
-
+                    <table id="table_shares"></table>
+                </div>
+                <div role="tabpanel" class="tab-pane" id="stats_tab">
+                    <canvas id="stats_chart"></canvas>
                 </div>
             </div>
         </div>
         <div class="modal fade" tabindex="-1" role="dialog" id="add_share_modal">
-            <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-dialog modal-xl" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -155,6 +153,7 @@
                                 <div role="tabpanel" class="tab-pane" id="share_options">
                                     <h3>Share options</h3>
                                     <p>File : <code id="file_path"></code></p>
+                                    <p>Size : <code id="file_size"></code></p>
                                     <input type="hidden" id="share_id">
                                     <div class="row">
                                         <div class='col-sm-6'>
@@ -235,7 +234,7 @@
             </div><!-- /.modal-dialog -->
         </div><!-- /.modal -->
         <div class="modal fade" tabindex="-1" role="dialog" id="compress_modal">
-            <div class="modal-dialog" role="document">
+            <div class="modal-dialog modal-xl" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -521,6 +520,7 @@
             function resetShareModal() {
                 $('#add_share_modal .modal-title').html('Create a new share');
                 $('#file_path').html('');
+                $('#file_size').html('');
                 $('#share_id').val(0);
                 $('#nav_file').removeClass('disabled');
                 $('#nav_options').addClass('disabled');
@@ -586,7 +586,7 @@
 
                             for (var i = 0; i < data.files.length; i++) {
                                 var file = data.files[i];
-                                $('#files tbody').append(['<tr path="' + file.path + '">',
+                                $('#files tbody').append(['<tr path="' + file.path + '" size="' + file.size + '">',
                                     '<td><span class="glyphicon glyphicon-' + (file.folder ? 'folder-open' : 'send') + '" aria-hidden="true"></span> ' + (file.folder ? ' <a class="folder_click" href="#">' + file.name + '</a>' : file.name) + '</td>',
                                     '<td>' + file.size + '</td>',
                                     '<td>' + file.date + '</td>',
@@ -607,7 +607,9 @@
                             });
                             $(".button_share").click(function () {
                                 var path = $(this).parent().parent().attr("path");
+                                var size = $(this).parent().parent().attr("size");
                                 $('#file_path').html(path);
+                                $('#file_size').html(size);
                                 $('#nav_options').removeClass('disabled');
                                 $('#time_limited_picker').hide();
                                 $("#download_limited_picker").hide();
@@ -646,6 +648,7 @@
             function generateLink() {
                 var id = $('#share_id').val();
                 var file = $('#file_path').html();
+                var size = $('#file_size').html();
                 var time = null;
                 if (!$("#time_limited").parent().hasClass('off'))
                     time = $('#time_limite input').val();
@@ -665,7 +668,7 @@
                 $.ajax({
                     url: '/share',
                     type: 'PUT',
-                    data: JSON.stringify({id: id, file: file, time: time, count: count, token: code, password: password}),
+                    data: JSON.stringify({id: id, file: file, size: size, time: time, count: count, token: code, password: password}),
                     contentType: 'application/json',
                     success: function (data) {
                         data = JSON.parse(data);
@@ -689,6 +692,7 @@
             function editLink(row) {
                 $('#add_share_modal .modal-title').html('Edit share ' + row.id);
                 $('#file_path').html(row.file);
+                $('#file_size').html(row.size);
                 $('#share_id').val(row.id);
                 if (row.limit_time !== null) {
                     $('#time_limited').bootstrapToggle('on');
