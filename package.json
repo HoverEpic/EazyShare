@@ -30,6 +30,7 @@
     "jquery-file-upload-middleware": "^0.1.8",
     "moment": "^2.22.2",
     "mysql": "^2.15.0",
+    "progress-stream": "^2.0.0",
     "serve-favicon": "^2.4.5",
     "xss": "^1.0.3"
   },

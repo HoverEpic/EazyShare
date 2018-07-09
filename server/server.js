@@ -13,12 +13,28 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const async = require('async');
 const archiver = require('archiver');
+const Progress = require('progress-stream');
+const EventEmitter = require('events');
+class ProgressEmitter extends EventEmitter {
+
+    emit(name, e) {
+        this.last = e;
+        super.emit(...arguments);
+    }
+
+    getLast() {
+        return this.last || {percentage: 0, transferred: 0, length: 0, remaining: 0, eta: 0, runtime: 0, delta: 0, speed: 0};
+    }
+}
+;
 
 // Constants TODO config env
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
 const PATH = config.get('Config.Paths.root_share');
 const AUTH = config.get('Config.Users');
+
+var progressBars = new Map();
 
 var app = express();
 
@@ -135,78 +151,105 @@ app.get('/download/:token', function (req, res) {
     var token = req.params.token;
     var direct = req.query.direct || true;
     var password = req.query.password || null;
+    var file = req.query.path;
     token = xss(token);
-    get_share_by_token(token, function (result) {
-        if (!result)
-            res.status(404).send();
-        else {
-            //check time limit
-            if (result.limit_time >= result.create_time) {
-                res.status(404).send();
-                remove_share("(" + result.id + ")", function (result2) {
-                    if (result2)
-                        console.log("share " + result.id + " removed !");
-                });
-                return;
-            }
-            //check count download
-            get_download_count_by_id(result.id, function (result2) {
-                if (result2) {
-                    if (result.limit_download === -1)
-                        return;
-                    if (result2.count >= result.limit_download) {
+
+    check_auth(req, res, function (connected) {
+        if (connected && file) { // in this case, an admin is downloading a file
+            var split = file.split("/");
+            var name = split[split.length - 1];
+            var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
+            res.setHeader('Content-disposition', 'attachment; filename=' + name);
+            stream.pipe(res);
+            res.end();
+        } else { // in this case, the user is not an admin, the token is used
+            get_share_by_token(token, function (result) {
+                if (!result)
+                    res.status(404).send();
+                else {
+                    //check if file exists
+                    if (!fs.existsSync(result.file)) {
                         res.status(404).send();
-                        remove_share("(" + result.id + ")", function (result3) {
-                            if (result3)
-                                console.log("share " + result.id + " removed !");
+                        remove_share("(" + result.id + ")", function (result2) {
+                            if (result2)
+                                console.log("share " + result.id + " removed, (file not exists) !");
                         });
                         return;
                     }
-                }
-            });
 
-            if (res._headerSent)
-                return;
-
-            var split = result.file.split("/");
-            var name = split[split.length - 1];
-            var passwordOK = false;
-            if (result.password === password) {
-                passwordOK = true;
-            }
-
-            if (res._headerSent)
-                return;
-
-            if (direct === true && passwordOK) {
-                var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-                add_download_history(result, ip, function () {
-                    //specify Content will be an attachment
-                    console.log('Starting download: ' + result.file);
-                    var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
-                    res.setHeader('Content-disposition', 'attachment; filename=' + name);
-                    stream.pipe(res);
-
+                    //check time limit
+                    if (result.limit_time >= result.create_time) {
+                        res.status(404).send();
+                        remove_share("(" + result.id + ")", function (result2) {
+                            if (result2)
+                                console.log("share " + result.id + " removed (count limit reached) !");
+                        });
+                        return;
+                    }
                     //check count download
                     get_download_count_by_id(result.id, function (result2) {
                         if (result2) {
                             if (result.limit_download === -1)
                                 return;
                             if (result2.count >= result.limit_download) {
-                                console.log("stop sending " + result.id + " !");
+                                res.status(404).send();
                                 remove_share("(" + result.id + ")", function (result3) {
                                     if (result3)
-                                        console.log("share " + result.id + " removed !");
+                                        console.log("share " + result.id + " removed (date limit reached) !");
                                 });
                                 return;
                             }
                         }
                     });
-                });
-            } else {
-                var error = !passwordOK ? "Wrong password !" : false;
-                res.render(path.join(__dirname + '/public/download'), {name: name, size: result.size, error: error, password: !passwordOK});
-            }
+
+                    if (res._headerSent)
+                        return;
+
+                    var split = result.file.split("/");
+                    var name = split[split.length - 1];
+                    var passwordOK = false;
+                    if (result.password === password) {
+                        passwordOK = true;
+                    }
+
+                    if (res._headerSent)
+                        return;
+
+                    if (direct === true && passwordOK) {
+                        var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+                        add_download_history(result, ip, function () {
+                            //specify Content will be an attachment
+                            console.log('<' + ip + '> Starting download: ' + result.file);
+                            var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
+                            res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                            stream.pipe(res);
+
+                            stream.on('end', () => {
+                                console.log('<' + ip + '> Finish download: ' + result.file);
+                            });
+
+                            //check count download
+                            get_download_count_by_id(result.id, function (result2) {
+                                if (result2) {
+                                    if (result.limit_download === -1)
+                                        return;
+                                    if (result2.count >= result.limit_download) {
+                                        console.log("stop sending " + result.id + " !");
+                                        remove_share("(" + result.id + ")", function (result3) {
+                                            if (result3)
+                                                console.log("share " + result.id + " removed !");
+                                        });
+                                        return;
+                                    }
+                                }
+                            });
+                        });
+                    } else {
+                        var error = !passwordOK ? "Wrong password !" : false;
+                        res.render(path.join(__dirname + '/public/download'), {name: name, size: result.size, error: error, password: !passwordOK});
+                    }
+                }
+            });
         }
     });
 });
@@ -333,17 +376,29 @@ app.post('/compress', function (req, res) {
         if (result) {
             var input = req.body.input || null;
             var output = req.body.output || null;
-            console.log("Starting compression of : " + output);
-            compress(input, output, function (err) {
-                if (err) {
-                    console.log("Failed compression of : " + output);
-                    res.send(JSON.stringify({error: err}));
-                } else {
-                    console.log("Successfull compression of : " + output);
-                    var dir = path.dirname(output).split(path.sep).pop();
-                    res.send(JSON.stringify({input: input, output: output, path: dir}));
-                }
-            });
+            if (!progressBars.has(output)) {
+                console.log("Starting compression of : " + output);
+                var progressBar = new ProgressEmitter();
+                progressBars.set(output, progressBar);
+                compress(input, output, progressBar, function (err) {
+                    progressBars.delete(output);
+                    if (err) {
+                        console.log("Failed compression of : " + output);
+                        res.send(JSON.stringify({error: err}));
+                    } else {
+                        console.log("Successfull compression of : " + output);
+//                        var dir = path.dirname(output).split(path.sep).pop();
+                        var dir = path.dirname(output);
+                        res.send(JSON.stringify({input: input, output: output, path: dir}));
+                    }
+                });
+//                progressBar.on('progress', function (progress) {
+//                    console.log('Compression progress : ' + progress.percentage + '% (eta : ' + progress.eta + ')');
+//                });
+            } else {
+                var progressBar = progressBars.get(output);
+                res.send(JSON.stringify({progress: progressBar.getLast()}));
+            }
         } else
             res.status(403).send();
     });
@@ -357,7 +412,8 @@ app.post('/delete', function (req, res) {
                 if (err)
                     res.send(JSON.stringify({error: err}));
                 else {
-                    var dir = path.dirname(file).split(path.sep).pop();
+//                    var dir = path.dirname(file).split(path.sep).pop();
+                    var dir = path.dirname(file);
                     res.send(JSON.stringify({path: dir}));
                 }
             });
@@ -632,19 +688,20 @@ function bytesToSize(bytes) {
     return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
 }
 
-var compress = function (input, outputFile, callback) {
+var compress = function (input, outputFile, progressBar, callback) {
     var output = fs.createWriteStream(outputFile);
     var archive = archiver('zip');
     directorySize(input, function (err, totalSize) {
+
+        var str = Progress({
+            length: totalSize,
+            time: 500 /* ms */
+        });
+
         var prettyTotalSize = bytesToSize(totalSize);
 
-//        output.on('close', function () {
-//            callback();
-//        });
-
-        archive.on('progress', function (progress) {
-            var percent = 100 - ((totalSize - progress.fs.processedBytes) / totalSize) * 100;
-            console.log('%s / %s (%d %)', bytesToSize(progress.fs.processedBytes), prettyTotalSize, percent);
+        str.on('progress', function (progress) {
+            progressBar.emit('progress', progress);
         });
 
         archive.on('end', function () {
@@ -658,7 +715,7 @@ var compress = function (input, outputFile, callback) {
             callback();
         });
 
-        archive.pipe(output);
+        archive.pipe(str).pipe(output);
 
         archive.directory(input);
 

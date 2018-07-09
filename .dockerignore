@@ -1,2 +1,8 @@
 node_modules
 npm-debug.log
+share/
+.git/
+Dockerfile
+README.md
+docker_build.sh
+.dockerignore
