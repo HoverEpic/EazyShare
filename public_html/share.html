@@ -486,6 +486,7 @@
                     clearInterval(refreshCompression);
                     $('#compress_button').removeClass("disabled");
                     $('#compress_button').removeAttr("disabled", true);
+                    $('#compressed_output').removeAttr("disabled", true);
                     $('#compress_progress .progress-bar').html(0 + "% (" + 0 + " s)");
                     $('#compress_progress .progress-bar').attr('aria-valuenow', 0);
                     $('#compress_progress .progress-bar').attr('style', "width: " + 0 + "%");
@@ -783,6 +784,7 @@
 
                     $('#compress_button').addClass("disabled");
                     $('#compress_button').attr("disabled", true);
+                    $('#compressed_output').attr("disabled", true);
 
                     refreshCompression = setInterval(function () {
                         $.ajax({
@@ -805,6 +807,7 @@
                                     $('#compress_modal').modal('hide');
                                     $('#compress_button').removeClass("disabled");
                                     $('#compress_button').removeAttr("disabled", true);
+                                    $('#compressed_output').removeAttr("disabled", true);
                                 } else {
                                     //?
                                 }
@@ -815,6 +818,7 @@
                                 clearInterval(refreshCompression);
                                 $('#compress_button').removeClass("disabled");
                                 $('#compress_button').removeAttr("disabled", true);
+                                $('#compressed_output').removeAttr("disabled", true);
                             }
                         });
                     }, 500);
