@@ -170,6 +170,12 @@ app.get('/download/:token', function (req, res) {
                 console.log('<' + ip + '> Finish direct download: ' + file);
                 res.end();
             });
+
+            req.on('close', () => {
+                console.log('<' + ip + '> Closed download: ' + file);
+                stream.close();
+                res.end();
+            });
         } else { // in this case, the user is not an admin, the token is used
             get_share_by_token(token, function (result) {
                 if (!result)
@@ -234,6 +240,12 @@ app.get('/download/:token', function (req, res) {
 
                             stream.on('end', () => {
                                 console.log('<' + ip + '> Finish download: ' + result.file);
+                                res.end();
+                            });
+
+                            req.on('close', () => {
+                                console.log('<' + ip + '> Closed download: ' + file);
+                                stream.close();
                                 res.end();
                             });
 
