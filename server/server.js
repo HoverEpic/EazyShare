@@ -152,127 +152,129 @@ app.get('/download/:token', function (req, res) {
     var token = req.params.token;
     var direct = req.query.direct || true;
     var password = req.query.password || null;
-    var file = req.query.path;
+    var file = req.query.path || false;
     token = xss(token);
     var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-    check_auth(req, res, function (connected) {
-        if (connected && file) { // in this case, an admin is downloading a file
-            var split = file.split("/");
-            var name = split[split.length - 1];
+    if (file) { // in this case, an admin is downloading a file
+        check_auth(req, res, function (connected) {
+            if (connected && file) {
+                var split = file.split("/");
+                var name = split[split.length - 1];
 
-            console.log('<' + ip + '> Starting direct download: ' + file);
-            var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
-            res.setHeader('Content-disposition', 'attachment; filename=' + name);
-            stream.pipe(res);
+                console.log('<' + ip + '> Starting direct download: ' + file);
+                var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
+                res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                stream.pipe(res);
 
-            stream.on('end', () => {
-                console.log('<' + ip + '> Finish direct download: ' + file);
-                res.end();
-            });
+                stream.on('end', () => {
+                    console.log('<' + ip + '> Finish direct download: ' + file);
+                    res.end();
+                });
 
-            req.on('close', () => {
-                console.log('<' + ip + '> Closed download: ' + file);
-                stream.close();
-                res.end();
-            });
-        } else { // in this case, the user is not an admin, the token is used
-            get_share_by_token(token, function (result) {
-                if (!result)
+                req.on('close', () => {
+                    console.log('<' + ip + '> Closed download: ' + file);
+                    stream.close();
+                    res.end();
+                });
+            }
+        });
+    } else { // in this case, the user is not an admin, the token is used
+        get_share_by_token(token, function (result) {
+            if (!result)
+                res.status(404).send();
+            else {
+                //check if file exists
+                if (!fs.existsSync(result.file)) {
                     res.status(404).send();
-                else {
-                    //check if file exists
-                    if (!fs.existsSync(result.file)) {
-                        res.status(404).send();
-                        remove_share("(" + result.id + ")", function (result2) {
-                            if (result2)
-                                console.log("share " + result.id + " removed, (file not exists) !");
-                        });
-                        return;
-                    }
-
-                    //check time limit
-                    if (result.limit_time >= result.create_time) {
-                        res.status(404).send();
-                        remove_share("(" + result.id + ")", function (result2) {
-                            if (result2)
-                                console.log("share " + result.id + " removed (count limit reached) !");
-                        });
-                        return;
-                    }
-
-                    //check count download
-                    get_download_count_by_id(result.id, function (result2) {
-                        if (result2) {
-                            if (result.limit_download === -1)
-                                return;
-                            if (result2.count >= result.limit_download) {
-                                res.status(404).send();
-                                remove_share("(" + result.id + ")", function (result3) {
-                                    if (result3)
-                                        console.log("share " + result.id + " removed (date limit reached) !");
-                                });
-                                return;
-                            }
-                        }
+                    remove_share("(" + result.id + ")", function (result2) {
+                        if (result2)
+                            console.log("share " + result.id + " removed, (file not exists) !");
                     });
-
-                    if (res._headerSent)
-                        return;
-
-                    var split = result.file.split("/");
-                    var name = split[split.length - 1];
-                    var passwordOK = false;
-                    if (result.password === password) {
-                        passwordOK = true;
-                    }
-
-                    if (res._headerSent)
-                        return;
-
-                    if (direct === true && passwordOK) {
-                        add_download_history(result, ip, function () {
-                            //specify Content will be an attachment
-                            console.log('<' + ip + '> Starting download: ' + result.file);
-                            var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
-                            res.setHeader('Content-disposition', 'attachment; filename=' + name);
-                            stream.pipe(res);
-
-                            stream.on('end', () => {
-                                console.log('<' + ip + '> Finish download: ' + result.file);
-                                res.end();
-                            });
-
-                            req.on('close', () => {
-                                console.log('<' + ip + '> Closed download: ' + result.file);
-                                stream.close();
-                                res.end();
-                            });
-
-                            //check count download
-                            get_download_count_by_id(result.id, function (result2) {
-                                if (result2) {
-                                    if (result.limit_download === -1)
-                                        return;
-                                    if (result2.count >= result.limit_download) {
-                                        console.log("stop sending " + result.id + " !");
-                                        remove_share("(" + result.id + ")", function (result3) {
-                                            if (result3)
-                                                console.log("share " + result.id + " removed !");
-                                        });
-                                        return;
-                                    }
-                                }
-                            });
-                        });
-                    } else {
-                        var error = !passwordOK ? "Wrong password !" : false;
-                        res.render(path.join(__dirname + '/public/download'), {name: name, size: result.size, error: error, password: !passwordOK});
-                    }
+                    return;
                 }
-            });
-        }
-    });
+
+                //check time limit
+                if (result.limit_time >= result.create_time) {
+                    res.status(404).send();
+                    remove_share("(" + result.id + ")", function (result2) {
+                        if (result2)
+                            console.log("share " + result.id + " removed (count limit reached) !");
+                    });
+                    return;
+                }
+
+                //check count download
+                get_download_count_by_id(result.id, function (result2) {
+                    if (result2) {
+                        if (result.limit_download === -1)
+                            return;
+                        if (result2.count >= result.limit_download) {
+                            res.status(404).send();
+                            remove_share("(" + result.id + ")", function (result3) {
+                                if (result3)
+                                    console.log("share " + result.id + " removed (date limit reached) !");
+                            });
+                            return;
+                        }
+                    }
+                });
+
+                if (res._headerSent)
+                    return;
+
+                var split = result.file.split("/");
+                var name = split[split.length - 1];
+                var passwordOK = false;
+                if (result.password === password) {
+                    passwordOK = true;
+                }
+
+                if (res._headerSent)
+                    return;
+
+                if (direct === true && passwordOK) {
+                    add_download_history(result, ip, function () {
+                        //specify Content will be an attachment
+                        console.log('<' + ip + '> Starting download: ' + result.file);
+                        var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
+                        res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                        stream.pipe(res);
+
+                        stream.on('end', () => {
+                            console.log('<' + ip + '> Finish download: ' + result.file);
+                            res.end();
+                        });
+
+                        req.on('close', () => {
+                            console.log('<' + ip + '> Closed download: ' + result.file);
+                            stream.close();
+                            res.end();
+                        });
+
+                        //check count download
+                        get_download_count_by_id(result.id, function (result2) {
+                            if (result2) {
+                                if (result.limit_download === -1)
+                                    return;
+                                if (result2.count >= result.limit_download) {
+                                    console.log("stop sending " + result.id + " !");
+                                    remove_share("(" + result.id + ")", function (result3) {
+                                        if (result3)
+                                            console.log("share " + result.id + " removed !");
+                                    });
+                                    return;
+                                }
+                            }
+                        });
+                    });
+                } else {
+                    var error = !passwordOK ? "Wrong password !" : false;
+                    res.render(path.join(__dirname + '/public/download'), {name: name, size: result.size, error: error, password: !passwordOK});
+                }
+            }
+        });
+    }
 });
 
 // (API) create the link and return the link
