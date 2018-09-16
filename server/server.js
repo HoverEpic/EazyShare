@@ -92,14 +92,14 @@ pool.getConnection(function (err, connection) {
         if (err)
             throw err;
 
-        //close limited downloads, shedule
-        pool.query('SELECT COUNT(*) AS `count` FROM shares', function (err, rows, fields) {
+        //count shares
+        pool.query('SELECT COUNT(*) AS `count` FROM shares WHERE `active` = 1', function (err, rows, fields) {
             if (err)
                 throw err;
             console.log(rows[0].count + " registered shares !");
         });
     });
-//    //create the history if not exist
+    //create the history if not exist
     pool.query(['CREATE TABLE IF NOT EXISTS download_history',
         '( `id` int(11) NOT NULL AUTO_INCREMENT,',
         '`file` text NOT NULL,',
@@ -111,6 +111,7 @@ pool.getConnection(function (err, connection) {
         if (err)
             throw err;
     });
+    //close limited downloads, shedule
     console.log("Ready to handle queries.");
     connection.release();
 });
@@ -153,15 +154,22 @@ app.get('/download/:token', function (req, res) {
     var password = req.query.password || null;
     var file = req.query.path;
     token = xss(token);
+    var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
     check_auth(req, res, function (connected) {
         if (connected && file) { // in this case, an admin is downloading a file
             var split = file.split("/");
             var name = split[split.length - 1];
+
+            console.log('<' + ip + '> Starting direct download: ' + file);
             var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
             res.setHeader('Content-disposition', 'attachment; filename=' + name);
             stream.pipe(res);
-            res.end();
+
+            stream.on('end', () => {
+                console.log('<' + ip + '> Finish direct download: ' + file);
+                res.end();
+            });
         } else { // in this case, the user is not an admin, the token is used
             get_share_by_token(token, function (result) {
                 if (!result)
@@ -186,6 +194,7 @@ app.get('/download/:token', function (req, res) {
                         });
                         return;
                     }
+
                     //check count download
                     get_download_count_by_id(result.id, function (result2) {
                         if (result2) {
@@ -216,7 +225,6 @@ app.get('/download/:token', function (req, res) {
                         return;
 
                     if (direct === true && passwordOK) {
-                        var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
                         add_download_history(result, ip, function () {
                             //specify Content will be an attachment
                             console.log('<' + ip + '> Starting download: ' + result.file);
@@ -226,6 +234,7 @@ app.get('/download/:token', function (req, res) {
 
                             stream.on('end', () => {
                                 console.log('<' + ip + '> Finish download: ' + result.file);
+                                res.end();
                             });
 
                             //check count download
@@ -258,7 +267,7 @@ app.get('/download/:token', function (req, res) {
 app.put('/share', function (req, res) {
     check_auth(req, res, function (result) {
         if (result) {
-            var id = req.body.id || 0;
+            var id = Number(req.body.id) || 0;
             var file = req.body.file || "";
             var size = req.body.size || 0;
             var time = req.body.time || null;
@@ -285,22 +294,24 @@ app.put('/share', function (req, res) {
 
             // protect token collision
             get_share_by_token(token, function (result) {
-                if (result) {
-                    res.send(JSON.stringify({error: "Token already exist !"}));
+                console.log(typeof id + " / " + typeof result.id);
+                if (result && result.id != id) { // token exists and id are differents
+                    res.send(JSON.stringify({error: "Bad id <-> token association !"}));
+                    console.log("Bad id <-> token association !!!!");
                     return;
-                }
-            });
-
-            if (id !== 0) {
-                get_share_by_id(id, function (exists) {
-                    if (exists) {
+                } else if (result && id === 0) { // token exists and it's a new share
+                    res.send(JSON.stringify({error: "Token already exist !"}));
+                    console.log("Token already exist !");
+                    return;
+                } else { // token not exists or it's an update
+                    if (result.id === id) { // update
                         update_share(id, file, token, time, count, password, function (result) {
                             if (result)
                                 res.send(JSON.stringify({file: file, token: token}));
                             else
                                 res.send(JSON.stringify({error: "An error occured !"}));
                         });
-                    } else {
+                    } else { // insert
                         add_share(file, size, token, time, count, password, function (result) {
                             if (result)
                                 res.send(JSON.stringify({file: file, token: token, showUrl: true}));
@@ -308,15 +319,8 @@ app.put('/share', function (req, res) {
                                 res.send(JSON.stringify({error: "An error occured !"}));
                         });
                     }
-                });
-            } else {
-                add_share(file, size, token, time, count, password, function (result) {
-                    if (result)
-                        res.send(JSON.stringify({file: file, token: token, showUrl: true}));
-                    else
-                        res.send(JSON.stringify({error: "An error occured !"}));
-                });
-            }
+                }
+            });
         } else
             res.status(403).send();
     });

@@ -683,8 +683,10 @@
                     $('#share_code').val(makeid());
                     code = $('#share_code').val();
                 }
-                console.log("generate code for file " + file);
-                console.log("with code " + code);
+                if (id === 0) {
+                    console.log("generate code for file " + file);
+                    console.log("with code " + code);
+                }
                 $.ajax({
                     url: '/share',
                     type: 'PUT',
@@ -739,7 +741,7 @@
                 $('.nav-tabs a[href="#share_options"]').tab('show');
                 $('#add_share_modal').modal('show');
                 $('#table_shares').bootstrapTable('refresh', {silent: true});
-                $('#create_link').html("Update link");
+                $('#create_link').html("Update");
             }
             function initChart() {
                 console.log(stats_data);
