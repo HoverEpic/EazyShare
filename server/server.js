@@ -244,7 +244,7 @@ app.get('/download/:token', function (req, res) {
                             });
 
                             req.on('close', () => {
-                                console.log('<' + ip + '> Closed download: ' + file);
+                                console.log('<' + ip + '> Closed download: ' + result.file);
                                 stream.close();
                                 res.end();
                             });
