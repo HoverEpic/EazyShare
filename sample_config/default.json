@@ -4,10 +4,10 @@
             "type": "mysql"
         },
         "Mysql": {
-            "host": "mysql",
+            "host": "database",
             "port": 3306,
-            "user": "root",
-            "password": "root",
+            "user": "eazyshare",
+            "password": "password",
             "database": "eazyshare",
             "connectionLimit": 10,
             "multipleStatements": true

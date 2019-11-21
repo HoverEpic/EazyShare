@@ -443,7 +443,7 @@ app.post('/delete', function (req, res) {
 app.post('/upload', function (req, res, next) {
     check_auth(req, res, function (result) {
         if (result && uploadDir !== null) {
-            fileUpload.fileHandler({})(req, res, next);
+            fileUpload.fileHandler(function() {})(req, res, next);
         } else
             res.status(403).send();
     });
