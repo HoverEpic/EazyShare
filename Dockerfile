@@ -1,4 +1,4 @@
-FROM keymetrics/pm2:latest-alpine
+FROM node:carbon
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -8,7 +8,6 @@ WORKDIR /usr/src/app
 # where available (npm@5+)
 COPY package*.json ./
 
-RUN npm install pm2 -g --save
 RUN npm install --save
 # If you are building your code for production
 # RUN npm install --only=production
@@ -21,4 +20,4 @@ COPY server .
 RUN echo "www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin" >> /etc/passwd
 
 EXPOSE 80
-CMD [ "/bin/ash", "start.sh"]
+CMD [ "/bin/sh", "start.sh"]

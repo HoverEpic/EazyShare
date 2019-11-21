@@ -28,6 +28,21 @@ class ProgressEmitter extends EventEmitter {
 }
 ;
 
+
+// override console
+var log = console.log;
+console.log = function () {
+    var first_parameter = arguments[0];
+    var other_parameters = Array.prototype.slice.call(arguments, 1);
+    log.apply(console, [new Date().toISOString().replace('T', ' ').substr(0, 19) + " > " + first_parameter].concat(other_parameters));
+};
+var error = console.error;
+console.error = function () {
+    var first_parameter = arguments[0];
+    var other_parameters = Array.prototype.slice.call(arguments, 1);
+    error.apply(console, [new Date().toISOString().replace('T', ' ').substr(0, 19) + " > " + first_parameter].concat(other_parameters));
+};
+
 // Constants TODO config env
 const PORT = config.get('Config.Server.port');
 const HOST = config.get('Config.Server.host');
@@ -243,7 +258,7 @@ app.get('/download/:token', function (req, res) {
                         var stats = fs.statSync(result.file);
                         res.setHeader('Content-disposition', 'attachment; filename=' + name);
                         res.setHeader('Content-Length', stats.size);
-                        
+
                         stream.pipe(res);
 
                         stream.on('end', () => {
@@ -448,7 +463,7 @@ app.post('/delete', function (req, res) {
 app.post('/upload', function (req, res, next) {
     check_auth(req, res, function (result) {
         if (result && uploadDir !== null) {
-            fileUpload.fileHandler(function(){});
+            fileUpload.fileHandler(function () {});
             res.send(JSON.stringify({data: uploadDir}));
         } else
             res.status(403).send();

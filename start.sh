@@ -16,4 +16,4 @@ if [ ! -f "config/default.json" ]; then
 fi
 
 echo "Starting node"
-pm2-runtime server.js -u www:data
+node server.js -u www:data
