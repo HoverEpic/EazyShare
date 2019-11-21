@@ -164,7 +164,9 @@ app.get('/download/:token', function (req, res) {
 
                 console.log('<' + ip + '> Starting direct download: ' + file);
                 var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
+                var stat = fs.statSync(file);
                 res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                res.setHeader('Content-Length', stat.size);
                 stream.pipe(res);
 
                 stream.on('end', () => {
@@ -238,7 +240,10 @@ app.get('/download/:token', function (req, res) {
                         //specify Content will be an attachment
                         console.log('<' + ip + '> Starting download: ' + result.file);
                         var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
+                        var stats = fs.statSync(result.file);
                         res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                        res.setHeader('Content-Length', stats.size);
+                        
                         stream.pipe(res);
 
                         stream.on('end', () => {
@@ -443,7 +448,8 @@ app.post('/delete', function (req, res) {
 app.post('/upload', function (req, res, next) {
     check_auth(req, res, function (result) {
         if (result && uploadDir !== null) {
-            fileUpload.fileHandler(function() {})(req, res, next);
+            fileUpload.fileHandler(function(){});
+            res.send(JSON.stringify({data: uploadDir}));
         } else
             res.status(403).send();
     });

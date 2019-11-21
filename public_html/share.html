@@ -499,16 +499,22 @@
                     url: "/upload",
                     dataType: 'json',
                     done: function (e, data) {
-                        $.each(data.result.files, function (index, file) {
-                            console.log("uploaded : " + file.name);
-                        });
-                        $('#progress .progress-bar').hide();
+                        console.log(data.result.data);
+                        resetShareModal();
+                        updateFileExplorer('/share/uploads');
+                        $('#upload_modal').modal('hide');
+                        //reset progress bar
+                        $('#progress .progress-bar').css('width', 0 + '%');
+                        $('#progress .progress-bar').html(0 + ' %');
+                        $('#add_share_modal').modal('show');
+                        
                     },
                     progressall: function (e, data) {
                         var progress = parseInt(data.loaded / data.total * 100, 10);
                         if (progress > 0)
                             $('#progress .progress-bar').show();
                         $('#progress .progress-bar').css('width', progress + '%');
+                        $('#progress .progress-bar').html(progress + ' %');
                     }
                 }).prop('disabled', !$.support.fileInput).parent().addClass($.support.fileInput ? undefined : 'disabled');
                 $('.nav-tabs a').on('shown.bs.tab', function (event) {
