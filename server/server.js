@@ -5,6 +5,7 @@ const config = require('config');
 const mysql = require('mysql');
 const xss = require("xss");
 const express = require('express');
+const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const fileUpload = require('jquery-file-upload-middleware');
 const path = require('path');
@@ -54,7 +55,6 @@ var progressBars = new Map();
 var app = express();
 
 // enable POST request decoding
-var bodyParser = require('body-parser');
 app.use(bodyParser.json());     // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({// to support URL-encoded bodies
     extended: true
@@ -81,6 +81,7 @@ if (config.get('Config.Upload.enable')) {
         uploadDir: uploadDir,
         uploadUrl: '/upload'
     });
+    app.use('/upload', fileUpload.fileHandler());
 }
 
 var dbConfig = config.get('Config.Mysql');
@@ -297,6 +298,102 @@ app.get('/download/:token', function (req, res) {
     }
 });
 
+// view the file by it's token (token)
+app.get('/view/:token', function (req, res) {
+    var token = req.params.token;
+    var direct = req.query.direct || true;
+    var password = req.query.password || null;
+    var file = req.query.path || false;
+    token = xss(token);
+
+    if (file) { // in this case, an admin is downloading a file
+        check_auth(req, res, function (connected) {
+            if (connected) {
+                viewFile(file, req, res);
+            }
+        });
+    } else { // in this case, the user is not an admin, the token is used
+        get_share_by_token(token, function (result) {
+            if (!result)
+                res.status(404).send();
+            else {
+
+                file = result.file;
+                //check if file exists
+                if (!fs.existsSync(file)) {
+                    res.status(404).send();
+                    remove_share("(" + result.id + ")", function (result2) {
+                        if (result2)
+                            console.log("share " + result.id + " removed, (file not exists) !");
+                    });
+                    return;
+                }
+
+                //check time limit
+                if (result.limit_time >= result.create_time) {
+                    res.status(404).send();
+                    remove_share("(" + result.id + ")", function (result2) {
+                        if (result2)
+                            console.log("share " + result.id + " removed (count limit reached) !");
+                    });
+                    return;
+                }
+
+                if (res._headerSent)
+                    return;
+
+                var split = file.split("/");
+                var name = split[split.length - 1];
+                var passwordOK = false;
+                if (result.password === password) {
+                    passwordOK = true;
+                }
+
+                if (res._headerSent)
+                    return;
+
+                if (direct === true && passwordOK) {
+                    viewFile(file, req, res);
+                } else {
+                    var error = !passwordOK ? "Wrong password !" : false;
+                    res.render(path.join(__dirname + '/public/view/text'), {name: name, size: result.size, error: error, password: !passwordOK});
+                }
+            }
+        });
+    }
+});
+
+app.get('/stream', function (req, res) {
+    const path = req.query.path || "";
+    const stat = fs.statSync(path);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+    if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1]
+                ? parseInt(parts[1], 10)
+                : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(path, {start, end});
+        const head = {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': 'video/mp4'
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+    } else {
+        const head = {
+            'Content-Length': fileSize,
+            'Content-Type': 'video/mp4'
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(path).pipe(res);
+    }
+});
+
 // (API) create the link and return the link
 app.put('/share', function (req, res) {
     check_auth(req, res, function (result) {
@@ -459,11 +556,11 @@ app.post('/delete', function (req, res) {
             res.status(403).send();
     });
 });
-// (API) remove file or folder
+// (API) upload file
 app.post('/upload', function (req, res, next) {
     check_auth(req, res, function (result) {
         if (result && uploadDir !== null) {
-            fileUpload.fileHandler(function () {});
+//            fileUpload.fileHandler(function () {});
             res.send(JSON.stringify({data: uploadDir}));
         } else
             res.status(403).send();
@@ -650,6 +747,58 @@ var remove_share = function (ids, result) {
         return result(true);
     });
 };
+
+function viewFile(file, req, res) {
+    var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    if (file) {
+        var split = file.split("/");
+        var name = split[split.length - 1];
+        var ext = name.split('.').pop();
+        var size = 0;
+        var error = "";
+        var stats = fs.statSync(file);
+        res.setHeader('Content-disposition', 'filename=' + name);
+        res.setHeader('Content-Length', stats.size);
+
+        console.log('<' + ip + '> Starting view file: ' + file);
+
+        switch (ext) {
+            case "txt":
+            case "md":
+            case "gcode":
+                fs.readFile(file, 'utf8', function (error, content) {
+                    if (error)
+                        content = error;
+                    else
+                        size = bytesToSize(fs.statSync(file).size);
+                    res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: content, error: error});
+                });
+                break;
+            case "jpg":
+                fs.readFile(file, function (err, data) {
+                    res.contentType("application/image/jpeg");
+                    res.send(data);
+                });
+                break;
+            case "mp4":
+            case "mkv":
+                res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, error: error});
+                break;
+            case "pdf":
+                fs.readFile(file, function (err, data) {
+                    res.contentType("application/pdf");
+                    res.send(data);
+                });
+                break;
+            default:
+                error = "Could not read this file !";
+                res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: error, error: error});
+        }
+    } else {
+        var error = "File not found !";
+        res.render(path.join(__dirname + '/public/view/text'), {name: name, size: 0, content: error, error: error});
+    }
+}
 
 function humanFileSize(bytes, si) {
     var thresh = si ? 1000 : 1024;

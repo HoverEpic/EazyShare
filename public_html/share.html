@@ -299,6 +299,7 @@
                     </div>
                     <div class="modal-body">
                         <p>File : <code id="file_name"></code></p>
+                        <p>View : <a id="file_view"></a></p>
                         <p>Direct URL : <a id="file_link"></a></p>
                         <p>Download page : <a id="page_link"></a></p>
                     </div>
@@ -321,6 +322,7 @@
         <script src="http://www.chartjs.org/dist/2.7.2/Chart.js"></script>
         <script>
             var downUrl = location.protocol + "//" + location.host + "/download";
+            var viewUrl = location.protocol + "//" + location.host + "/view";
             var count = 1;
             var refreshCompression;
             var compressing = false;
@@ -534,6 +536,8 @@
                 },
                 'click .link': function (e, value, row, index) {
                     $('#file_name').html(row.file);
+                    $('#file_view').html(viewUrl + "/" + row.token);
+                    $('#file_view').attr("href", viewUrl + "/" + row.token);
                     $('#file_link').html(downUrl + "/" + row.token);
                     $('#file_link').attr("href", downUrl + "/" + row.token);
                     $('#page_link').html(downUrl + "/" + row.token + "?direct=false");
@@ -565,6 +569,7 @@
                 $('#share_code').removeAttr("disabled");
                 $('#time_limite input').val('');
                 $('#file_name').html("");
+                $('#file_view').html("");
                 $('#file_link').html("");
                 $('#page_link').html("");
                 $('#create_link').html("Create link");
@@ -620,6 +625,7 @@
                                     (file.folder ? '<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button> ' : ''),
                                     '<button type="button" class="btn btn-danger btn-xs button_delete">Delete</button> ',
                                     (file.folder ? '' : '<a href="/download/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_download">Download</a> '),
+                                    (file.folder ? '' : '<a target="_blank" href="/view/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_view">View</a> '),
                                     '</td>',
                                     '</tr>'].join(''));
                             }
@@ -707,6 +713,8 @@
                             $('#table_shares').bootstrapTable('refresh', {silent: true});
                             if (data.showUrl) {
                                 $('#file_name').html(data.file);
+                                $('#file_view').html(viewUrl + "/" + data.token);
+                                $('#file_view').attr("href", viewUrl + "/" + data.token);
                                 $('#file_link').html(downUrl + "/" + data.token);
                                 $('#file_link').attr("href", downUrl + "/" + data.token);
                                 $('#page_link').html(downUrl + "/" + data.token + "?direct=false");
