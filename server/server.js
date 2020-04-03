@@ -785,9 +785,20 @@ function viewFile(file, req, res) {
         console.log('<' + ip + '> Starting view file: ' + file);
 
         switch (ext) {
+            case "":
             case "txt":
             case "md":
             case "gcode":
+            case "sh":
+            case "json":
+            case "sql":
+            case "yml":
+            case "html":
+            case "js":
+            case "css":
+            case "css":
+            case "css":
+            case "css":
                 fs.readFile(file, 'utf8', function (error, content) {
                     if (error)
                         content = error;
@@ -797,13 +808,33 @@ function viewFile(file, req, res) {
                 });
                 break;
             case "jpg":
-                fs.readFile(file, function (err, data) {
-                    res.contentType("application/image/jpeg");
-                    res.send(data);
+            case "png":
+            case "gif":
+                fs.readFile(file, function (error, data) {
+                    if (error)
+                        content = error;
+                    else {
+                        size = bytesToSize(fs.statSync(file).size);
+                        var content = "data:image/" + ext + ";base64, " + new Buffer(data).toString('base64');
+                    }
+                    res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
+                });
+                break;
+            case "svg":
+                fs.readFile(file, function (error, data) {
+                    if (error)
+                        content = error;
+                    else {
+                        size = bytesToSize(fs.statSync(file).size);
+                        var content = "data:image/svg+xml;base64, " + new Buffer(data).toString('base64');
+                    }
+                    res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
                 });
                 break;
             case "mp4":
             case "mkv":
+            case "avi":
+                size = bytesToSize(fs.statSync(file).size);
                 res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, error: error});
                 break;
             case "pdf":
