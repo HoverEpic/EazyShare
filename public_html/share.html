@@ -39,6 +39,7 @@
             <ul class="nav nav-tabs" role="tablist">
                 <li role="presentation" class="active"><a href="#shares_tab" aria-controls="shares_tab" role="tab" data-toggle="tab">Shares</a></li>
                 <li role="presentation"><a href="#stats_tab" aria-controls="stats_tab" role="tab" data-toggle="tab">Stats</a></li>
+                <li role="presentation"><a href="#jobs_tab" aria-controls="jobs_tab" role="tab" data-toggle="tab">Jobs</a></li>
             </ul>
 
             <!-- Tab panes -->
@@ -59,6 +60,9 @@
                 </div>
                 <div role="tabpanel" class="tab-pane" id="stats_tab">
                     <canvas id="stats_chart"></canvas>
+                </div>
+                <div role="tabpanel" class="tab-pane" id="jobs_tab">
+                    <table id="table_jobs" data-auto-refresh="true" data-auto-refresh-interval="1"></table>
                 </div>
             </div>
         </div>
@@ -246,8 +250,8 @@
                             <label for="exampleInputEmail1">Output :</label>
                             <input type="text" class="form-control" id="compressed_output" placeholder="Path">
                         </div>
-                        <div id="compress_progress" class="progress">
-                            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
+                        <div id="compress_progress" class="progress" style="color: black;">
+                            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;color: black">
                                 0%
                             </div>
                         </div>
@@ -315,6 +319,7 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.4/js/bootstrap-select.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/bootstrap-table.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.12.1/locale/bootstrap-table-fr-FR.min.js"></script>
+        <script src="https://unpkg.com/bootstrap-table@1.12.1/dist/extensions/auto-refresh/bootstrap-table-auto-refresh.min.js"></script>
         <script src="https://gitcdn.github.io/bootstrap-toggle/2.2.2/js/bootstrap-toggle.min.js"></script>
         <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.9.0/moment-with-locales.js"></script>
         <script src="http://cdn.rawgit.com/Eonasdan/bootstrap-datetimepicker/e8bddc60e73c1ec2475f827be36e1957af72e2ea/src/js/bootstrap-datetimepicker.js"></script>
@@ -330,6 +335,11 @@
             var stats_data = [];
             $(document).ready(function () {
                 console.log("ready!");
+                // disable go back button
+                window.history.pushState(null, "", window.location.href);
+                window.onpopstate = function () {
+                    window.history.pushState(null, "", window.location.href);
+                };
                 //load shares table
                 $('#table_shares').bootstrapTable({//http://bootstrap-table.wenzhixin.net.cn/documentation/
                     classes: 'table table-hover table-condensed table-responsive',
@@ -414,6 +424,56 @@
                 function passwordFormat(value, row, index) {
                     if (value !== null)
                         return '<i class="glyphicon glyphicon-ok"></i>';
+                    return "";
+                }
+                $('#table_jobs').bootstrapTable({//http://bootstrap-table.wenzhixin.net.cn/documentation/
+                    classes: 'table table-hover table-condensed table-responsive',
+                    url: '/listjobs',
+                    method: 'get',
+                    sidePagination: 'server',
+                    cache: false,
+                    height: '',
+                    striped: false,
+                    pagination: true,
+                    pageSize: 10,
+                    pageList: [10, 25, 50, 100, 200],
+                    search: true,
+                    searchAlign: 'right',
+                    showColumns: false,
+                    showRefresh: true,
+                    showHeader: true,
+                    minimumCountColumns: 2,
+                    clickToSelect: false,
+                    columns: [
+                        {
+                            field: 'in',
+                            title: 'Input'
+                        }, {
+                            field: 'out',
+                            title: 'Outut'
+                        }, {
+                            field: 'percentage',
+                            title: 'Percentage',
+                            formatter: progressBarFormat
+                        }, {
+                            field: 'eta',
+                            title: 'ETA',
+                            formatter: etaFormat
+                        }
+                    ]
+                });
+                function progressBarFormat(value, row, index) {
+                    if (value !== null)
+                        return '<div class="progress" style="margin-bottom: 0px; color: black">'+
+                            '<div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: ' + value + '%;color: black">' +
+                                Math.round(value) + '%' +
+                            '</div>' +
+                        '</div>';
+                    return "";
+                }
+                function etaFormat(value, row, index) {
+                    if (value !== null)
+                        return value + 's';
                     return "";
                 }
                 $(".nav-tabs a[data-toggle=tab]").on("click", function (e) { // disabled tab hack
@@ -509,7 +569,7 @@
                         $('#progress .progress-bar').css('width', 0 + '%');
                         $('#progress .progress-bar').html(0 + ' %');
                         $('#add_share_modal').modal('show');
-                        
+
                     },
                     progressall: function (e, data) {
                         var progress = parseInt(data.loaded / data.total * 100, 10);
@@ -625,7 +685,7 @@
                                     (file.folder ? '<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button> ' : ''),
                                     '<button type="button" class="btn btn-danger btn-xs button_delete">Delete</button> ',
                                     (file.folder ? '' : '<a href="/download/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_download">Download</a> '),
-                                    (file.folder ? '' : '<a target="_blank" href="/view/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_view">View</a> '),
+                                    (file.folder ? '' : '<a target="_blank" href="/view/file?path=' + encodeURI(file.path) + '" class="btn btn-info btn-xs button_view">View</a> '),
                                     '</td>',
                                     '</tr>'].join(''));
                             }
@@ -837,7 +897,7 @@
                                 $('#compressed_output').removeAttr("disabled", true);
                             }
                         });
-                    }, 500);
+                    }, 1000);
                 }
             }
             function deletePath(path) {

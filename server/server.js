@@ -1,5 +1,4 @@
 'use strict';
-
 //init app
 const config = require('config');
 const mysql = require('mysql');
@@ -514,7 +513,7 @@ app.post('/compress', function (req, res) {
             if (!progressBars.has(output)) {
                 console.log("Starting compression of : " + output);
                 var progressBar = new ProgressEmitter();
-                progressBars.set(output, progressBar);
+                progressBars.set(output, [{input : input, output: output}, progressBar]);
                 compress(input, output, progressBar, function (err) {
                     progressBars.delete(output);
                     if (err) {
@@ -531,7 +530,7 @@ app.post('/compress', function (req, res) {
 //                    console.log('Compression progress : ' + progress.percentage + '% (eta : ' + progress.eta + ')');
 //                });
             } else {
-                var progressBar = progressBars.get(output);
+                var progressBar = progressBars.get(output)[1];
                 res.send(JSON.stringify({progress: progressBar.getLast()}));
             }
         } else
@@ -582,7 +581,6 @@ app.delete('/dellinks', function (req, res) {
             res.status(403).send();
     });
 });
-
 // (API) list stats by date
 app.get('/stats', function (req, res) {
     check_auth(req, res, function (result) {
@@ -590,6 +588,30 @@ app.get('/stats', function (req, res) {
             get_all_download_history(function (results) {
                 res.send(JSON.stringify({data: results}));
             });
+        } else
+            res.status(403).send();
+    });
+});
+// (API) list active jobs
+app.get('/listjobs', function (req, res) {
+    check_auth(req, res, function (result) {
+        if (result) {
+            var rows = [];
+            var total = 0;
+            if (progressBars.size > 0) {
+                for (var i = 0; i < progressBars.size; i++) {
+                    var value = progressBars.values().next().value;
+                    rows[i] = {};
+                    rows[i].in = value[0].input;
+                    rows[i].out = value[0].output;
+                    if (value[1].last) {
+                        rows[i].percentage = value[1].last.percentage;
+                        rows[i].eta = value[1].last.eta;
+                    }
+                }
+                total = progressBars.size;
+            }
+            res.send(JSON.stringify({rows: rows, total: total}));
         } else
             res.status(403).send();
     });
@@ -929,6 +951,14 @@ var deleteFolderRecursive = function (path) {
         fs.rmdirSync(path);
     }
 };
+
+//https://stackoverflow.com/questions/44740423/create-json-string-from-js-map-and-string
+function mapToObj(map) {
+    const obj = {};
+    for (let [k, v] of map)
+        obj[k] = v;
+    return obj;
+}
 
 app.listen(PORT, HOST, function () {
     console.log(`Running on http://${HOST}:${PORT}`);
