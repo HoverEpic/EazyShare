@@ -15,6 +15,8 @@ const async = require('async');
 const archiver = require('archiver');
 const Progress = require('progress-stream');
 const EventEmitter = require('events');
+const wget = require('wget-improved');
+
 class ProgressEmitter extends EventEmitter {
 
     emit(name, e) {
@@ -25,9 +27,7 @@ class ProgressEmitter extends EventEmitter {
     getLast() {
         return this.last || {percentage: 0, transferred: 0, length: 0, remaining: 0, eta: 0, runtime: 0, delta: 0, speed: 0};
     }
-}
-;
-
+};
 
 // override console
 var log = console.log;
@@ -81,6 +81,15 @@ if (config.get('Config.Upload.enable')) {
         uploadUrl: '/upload'
     });
     app.use('/upload', fileUpload.fileHandler());
+}
+//download
+var downloadDir = null;
+if (config.get('Config.Download.enable')) {
+    downloadDir = PATH + '/downloads';
+    //create folder if not exists
+    if (!fs.existsSync(downloadDir)) {
+        fs.mkdirSync(downloadDir);
+    }
 }
 
 var dbConfig = config.get('Config.Mysql');
@@ -513,7 +522,7 @@ app.post('/compress', function (req, res) {
             if (!progressBars.has(output)) {
                 console.log("Starting compression of : " + output);
                 var progressBar = new ProgressEmitter();
-                progressBars.set(output, [{input : input, output: output}, progressBar]);
+                progressBars.set(output, [{type: "compress", input: input, output: output}, progressBar]);
                 compress(input, output, progressBar, function (err) {
                     progressBars.delete(output);
                     if (err) {
@@ -565,6 +574,44 @@ app.post('/upload', function (req, res, next) {
             res.status(403).send();
     });
 });
+// (API) upload file
+app.post('/download', function (req, res, next) {
+    check_auth(req, res, function (result) {
+        if (result && downloadDir !== null) {
+            var url = req.body.url || null;
+            var file = req.body.file || null;
+            file = downloadDir + "/" + file;
+
+            console.log(url);
+            if (!progressBars.has(file)) {
+                var progressBar = new ProgressEmitter();
+                progressBars.set(file, [{type: "download", input: url, output: file}, progressBar]);
+
+                download(url, file, progressBar, function (err) {
+                    progressBars.delete(file);
+                    if (err) {
+                        console.log("Failed download of : " + file);
+                        res.send(JSON.stringify({error: err}));
+                    } else {
+                        console.log("Successfull download of : " + file);
+                        var dir = path.dirname(file);
+                        res.send(JSON.stringify({data: downloadDir}));
+                    }
+                });
+
+//                progressBar.on('progress', function (progress) {
+////                    console.log('Job progress : ' + JSON.stringify(progress));
+//                    console.log('Download progress : ' + progress.percentage + '% (eta : ' + progress.eta + ')');
+//                });
+            } else {
+                var progressBar = progressBars.get(file)[1];
+//                console.log('Job progress : ' + JSON.stringify(progressBar));
+                res.send(JSON.stringify({progress: progressBar.getLast()}));
+            }
+        } else
+            res.status(403).send();
+    });
+});
 // (API) disable an active link
 app.delete('/dellinks', function (req, res) {
     check_auth(req, res, function (result) {
@@ -599,15 +646,19 @@ app.get('/listjobs', function (req, res) {
             var rows = [];
             var total = 0;
             if (progressBars.size > 0) {
-                for (var i = 0; i < progressBars.size; i++) {
-                    var value = progressBars.values().next().value;
-                    rows[i] = {};
-                    rows[i].in = value[0].input;
-                    rows[i].out = value[0].output;
-                    if (value[1].last) {
-                        rows[i].percentage = value[1].last.percentage;
-                        rows[i].eta = value[1].last.eta;
+                var i = 0;
+                for (var value of progressBars.values()) {
+                    if (value[1]) {
+                        rows[i] = {};
+                        rows[i].type = value[0].type;
+                        rows[i].in = value[0].input;
+                        rows[i].out = value[0].output;
+                        if (value[1] && value[1].getLast()) {
+                            rows[i].percentage = value[1].getLast().percentage;
+                            rows[i].eta = value[1].getLast().eta;
+                        }
                     }
+                    i++;
                 }
                 total = progressBars.size;
             }
@@ -834,6 +885,7 @@ function viewFile(file, req, res) {
             case "mp4":
             case "mkv":
             case "avi":
+            case "webm":
                 size = bytesToSize(fs.statSync(file).size);
                 res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, error: error});
                 break;
@@ -966,7 +1018,34 @@ var compress = function (input, outputFile, progressBar, callback) {
             }
         });
     });
+};
 
+var download = function (url, outputFile, progressBar, callback) {
+    let download = wget.download(url, outputFile, {});
+//    console.log(JSON.stringify(download, null, 1));
+    var startTime = new Date().getTime();
+    var size = 1;
+    download.on('error', function (err) {
+        if (err) {
+            callback(err);
+        }
+    });
+    download.on('start', function (fileSize) {
+        size = fileSize;
+        console.log("Start downloading " + fileSize + " bytes, " + url);
+    });
+    download.on('end', function (output) {
+        console.log("Downloaded " + output);
+        callback();
+    });
+    download.on('progress', function (progress) {
+        typeof progress === 'number';
+        var elapsedTime = new Date().getTime() - startTime;
+        var transfered = size * progress;
+        var remaining = size - transfered;
+        var eta = elapsedTime * ((1 - progress) / 100);
+        progressBar.emit('progress', {percentage: progress * 100, transferred: transfered, length: size, remaining: remaining, eta: eta, runtime: elapsedTime, delta: 0, speed: 0});
+    });
 };
 
 var deleteFolderRecursive = function (path) {

@@ -33,7 +33,8 @@
     "mysql": "^2.15.0",
     "progress-stream": "^2.0.0",
     "serve-favicon": "^2.4.5",
-    "xss": "^1.0.3"
+    "xss": "^1.0.3",
+    "wget-improved": "3.2.0"
   },
   "license": "ISC",
   "description": "Easy way to share files from an online server."
