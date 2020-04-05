@@ -249,14 +249,9 @@
                     </div>
                     <div class="modal-body">
                         <p>File or folder : <code id="compressed_input"></code></p>
-                        <p>Result : </p><div class="form-group">
+                        <div class="form-group">
                             <label for="exampleInputEmail1">Output :</label>
                             <input type="text" class="form-control" id="compressed_output" placeholder="Path">
-                        </div>
-                        <div id="compress_progress" class="progress" style="color: black;">
-                            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;color: black">
-                                0%
-                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -308,17 +303,12 @@
                         <div class="row">
                             <div class="col-lg-12">
                                 <input type="text" class="form-control url" placeholder="Adress">
+                                <br>
                                 <div class="input-group">
                                     <input type="text" class="form-control file" placeholder="File">
                                     <span class="input-group-btn">
                                         <button class="btn btn-default" type="button" id="go_download">Go!</button>
                                     </span>
-                                </div>
-                            </div>
-                            <div class="col-md-12">
-                                <br>
-                                <div id="download_progress" class="progress">
-                                    <div class="progress-bar progress-bar-warning"></div>
                                 </div>
                             </div>
                         </div>
@@ -364,8 +354,6 @@
             var downUrl = location.protocol + "//" + location.host + "/download";
             var viewUrl = location.protocol + "//" + location.host + "/view";
             var count = 1;
-            var refreshCompression;
-            var compressing = false;
             var stats_chart;
             var stats_data = [];
             $(document).ready(function () {
@@ -469,10 +457,10 @@
                     cache: false,
                     height: '',
                     striped: false,
-                    pagination: false,
+                    pagination: true,
                     pageSize: 10,
                     pageList: [10, 25, 50, 100, 200],
-                    search: true,
+                    search: false,
                     searchAlign: 'right',
                     showColumns: false,
                     showRefresh: true,
@@ -582,15 +570,6 @@
                 $('#add_share_modal').on('hide.bs.modal', function () {
                     resetShareModal();
                 });
-                $('#compress_modal').on('hide.bs.modal', function () {
-                    clearInterval(refreshCompression);
-                    $('#compress_button').removeClass("disabled");
-                    $('#compress_button').removeAttr("disabled", true);
-                    $('#compressed_output').removeAttr("disabled", true);
-                    $('#compress_progress .progress-bar').html(0 + "% (" + 0 + " s)");
-                    $('#compress_progress .progress-bar').attr('aria-valuenow', 0);
-                    $('#compress_progress .progress-bar').attr('style', "width: " + 0 + "%");
-                });
                 $('#upload').click(function () {
                     $('#upload_modal').modal('show');
                 });
@@ -626,7 +605,7 @@
                 $('#download').click(function () {
                     $('#download_modal').modal('show');
                 });
-                $('#download_modal .url').on('paste propertychange update', function () { // TODO REPAIR
+                $('#download_modal .url').on('paste change', function () { // TODO REPAIR
                     var url = $('#download_modal .url').val();
                     var name = url.split('/').pop();
                     $('#download_modal .file').val(name);
@@ -634,31 +613,14 @@
                 $('#go_download').click(function () {
                     var url = $('#download_modal .url').val();
                     var file = $('#download_modal .file').val();
-                    $.ajax({
-                        url: '/download',
-                        type: 'POST',
-                        data: JSON.stringify({url: url, file: file}),
-                        contentType: 'application/json',
-                        success: function (data) {
-                            console.log(data);
-                            data = JSON.parse(data);
-                            if (data.error) {
-                                
-                            } else if (data.progress) {
-                                
-                            } else if (data.path) {
-                                
-                            } else {
-                                //?
-                            }
-                        },
-                        error: function (xhr, status, error) {
-                            clearInterval(refreshCompression);
-                            $('#compress_button').removeClass("disabled");
-                            $('#compress_button').removeAttr("disabled", true);
-                            $('#compressed_output').removeAttr("disabled", true);
-                        }
-                    });
+                    download(url, file);
+                });
+                $('#table_jobs').on('load-success.bs.table', function (data, status, jqXHR) {
+                    var total = $('#table_jobs').bootstrapTable('getData').length;
+                    if (total > 0)
+                        $('.nav-tabs a[href="#jobs_tab"]').html('Jobs </a><span class="badge">' + total + '</span>');
+                    else
+                        $('.nav-tabs a[href="#jobs_tab"]').html('Jobs');
                 });
             });
 
@@ -929,51 +891,37 @@
                 });
             }
             function compress(input, output) {
-                //protect spaming compression
-                if (!compressing) {
-                    compressing = true;
-
-                    $('#compress_button').addClass("disabled");
-                    $('#compress_button').attr("disabled", true);
-                    $('#compressed_output').attr("disabled", true);
-
-                    refreshCompression = setInterval(function () {
-                        $.ajax({
-                            url: '/compress',
-                            type: 'POST',
-                            data: JSON.stringify({input: input, output: output}),
-                            contentType: 'application/json',
-                            success: function (data) {
-                                data = JSON.parse(data);
-                                if (data.error) {
-                                    clearInterval(refreshCompression);
-                                    console.log(data.error);
-                                } else if (data.progress) {
-                                    $('#compress_progress .progress-bar').html(Math.round(data.progress.percentage) + "% (" + data.progress.eta + " s)");
-                                    $('#compress_progress .progress-bar').attr('aria-valuenow', data.progress.percentage);
-                                    $('#compress_progress .progress-bar').attr('style', "width: " + data.progress.percentage + "%");
-                                } else if (data.path) {
-                                    clearInterval(refreshCompression);
-                                    updateFileExplorer(data.path);
-                                    $('#compress_modal').modal('hide');
-                                    $('#compress_button').removeClass("disabled");
-                                    $('#compress_button').removeAttr("disabled", true);
-                                    $('#compressed_output').removeAttr("disabled", true);
-                                } else {
-                                    //?
-                                }
-
-                                compressing = false;
-                            },
-                            error: function (xhr, status, error) {
-                                clearInterval(refreshCompression);
-                                $('#compress_button').removeClass("disabled");
-                                $('#compress_button').removeAttr("disabled", true);
-                                $('#compressed_output').removeAttr("disabled", true);
-                            }
-                        });
-                    }, 1000);
-                }
+                $.ajax({
+                    url: '/compress',
+                    type: 'POST',
+                    data: JSON.stringify({input: input, output: output}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        data = JSON.parse(data);
+                        if (data.error) {
+                            console.log(data.error);
+                        }
+                    }
+                });
+                $('a[href="#jobs_tab"]').tab('show');
+                $('#add_share_modal').modal('hide');
+                $('#compress_modal').modal('hide');
+            }
+            function download(url, file) {
+                $.ajax({
+                    url: '/download',
+                    type: 'POST',
+                    data: JSON.stringify({url: url, file: file}),
+                    contentType: 'application/json',
+                    success: function (data) {
+                        data = JSON.parse(data);
+                        if (data.error) {
+                            console.log(data.error);
+                        }
+                    }
+                });
+                $('a[href="#jobs_tab"]').tab('show');
+                $('#download_modal').modal('hide');
             }
             function deletePath(path) {
                 $.ajax({
