@@ -499,7 +499,7 @@
                 }
                 function etaFormat(value, row, index) {
                     if (value !== null)
-                        return Math.round(value) + 's';
+                        return prettyTime(Math.round(value));
                     return "";
                 }
                 $(".nav-tabs a[data-toggle=tab]").on("click", function (e) { // disabled tab hack
@@ -977,6 +977,19 @@
                         }
                     }
                 });
+            }
+            //from https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
+            function prettyTime(sec) {
+                var sec_num = parseInt(sec, 10);
+                
+                var days = Math.floor(sec_num / (3600*24));
+                var hours = Math.floor(sec_num / 3600) % 24;
+                var minutes = Math.floor(sec_num / 60) % 60;
+                var seconds = sec_num % 60;
+                
+                return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+
+                //return [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).filter((v, i) => v !== "00" || i > 0).join(":");
             }
         </script>
     </body>

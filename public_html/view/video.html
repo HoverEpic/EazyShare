@@ -18,13 +18,16 @@
         <div class="container-fluid">
             <p>Name : <code><%= name %></code></p>
             <p>Size : <code><%= size %></code></p>
+            <p>Original encoding : <code><%= meta.audio %> / <%= meta.video %></code></p>
             <video id="videoPlayer" controls autoplay>
                 <source src="/stream?path=<%= file %>">
+                Votre navigateur ne permet pas de lire les vidéos.
+                Mais vous pouvez toujours 
+                <a href="#">la télécharger</a>
             </video>
         </div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-        <script src="https://vjs.zencdn.net/7.6.6/video.js"></script>
         <script>
             $(document).ready(function () {
                 console.log("ready!");

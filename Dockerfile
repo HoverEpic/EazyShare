@@ -1,5 +1,7 @@
 FROM node:carbon
 
+RUN apt update && apt install ffmpeg -y
+
 # Create app directory
 WORKDIR /usr/src/app
 

@@ -26,6 +26,9 @@
         "Download": {
             "enable": true
         },
+        "Transcoder": {
+            "enable": true
+        },
         "Users": {
             "username": {
                 "password": "password"

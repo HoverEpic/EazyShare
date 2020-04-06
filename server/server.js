@@ -16,6 +16,7 @@ const archiver = require('archiver');
 const Progress = require('progress-stream');
 const EventEmitter = require('events');
 const wget = require('wget-improved');
+const ffmpeg = require('fluent-ffmpeg');
 
 class ProgressEmitter extends EventEmitter {
 
@@ -27,7 +28,8 @@ class ProgressEmitter extends EventEmitter {
     getLast() {
         return this.last || {percentage: 0, transferred: 0, length: 0, remaining: 0, eta: 0, runtime: 0, delta: 0, speed: 0};
     }
-};
+}
+;
 
 // override console
 var log = console.log;
@@ -50,6 +52,7 @@ const PATH = config.get('Config.Paths.root_share');
 const AUTH = config.get('Config.Users');
 
 var progressBars = new Map();
+var command = ffmpeg();
 
 var app = express();
 
@@ -82,13 +85,22 @@ if (config.get('Config.Upload.enable')) {
     });
     app.use('/upload', fileUpload.fileHandler());
 }
-//download
+download
 var downloadDir = null;
 if (config.get('Config.Download.enable')) {
     downloadDir = PATH + '/downloads';
     //create folder if not exists
     if (!fs.existsSync(downloadDir)) {
         fs.mkdirSync(downloadDir);
+    }
+}
+//transcoder
+var transcoderDir = null;
+if (config.get('Config.Transcoder.enable')) {
+    transcoderDir = PATH + '/transcoded';
+    //create folder if not exists
+    if (!fs.existsSync(transcoderDir)) {
+        fs.mkdirSync(transcoderDir);
     }
 }
 
@@ -372,19 +384,21 @@ app.get('/view/:token', function (req, res) {
 });
 
 app.get('/stream', function (req, res) {
-    const path = req.query.path || "";
-    const stat = fs.statSync(path);
-    const fileSize = stat.size;
-    const range = req.headers.range;
+    var path = req.query.path || "";
+    var stat = fs.statSync(path);
+    var fileSize = stat.size;
+    var range = req.headers.range;
+
     if (range) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1]
+        var parts = range.replace(/bytes=/, "").split("-");
+        var start = parseInt(parts[0], 10);
+        var end = parts[1]
                 ? parseInt(parts[1], 10)
                 : fileSize - 1;
-        const chunksize = (end - start) + 1;
-        const file = fs.createReadStream(path, {start, end});
-        const head = {
+        var chunksize = (end - start) + 1;
+
+        var file = fs.createReadStream(path, {start: start, end: end});
+        var head = {
             'Content-Range': `bytes ${start}-${end}/${fileSize}`,
             'Accept-Ranges': 'bytes',
             'Content-Length': chunksize,
@@ -392,13 +406,36 @@ app.get('/stream', function (req, res) {
         };
         res.writeHead(206, head);
         file.pipe(res);
+
     } else {
+        console.log("stream entire content");
         const head = {
             'Content-Length': fileSize,
             'Content-Type': 'video/mp4'
         };
         res.writeHead(200, head);
         fs.createReadStream(path).pipe(res);
+    }
+});
+
+app.get('/transcode', function (req, res) {
+    var file = req.query.file || "";
+    if (file) {
+        var split = file.split("/");
+        var name = split[split.length - 1];
+        var ext = name.split('.').pop();
+        var output = transcoderDir + "/" + name + ".mp4";
+
+        var progressBar = new ProgressEmitter();
+        progressBars.set(output, [{type: "transcode", input: file, output: output}, progressBar]);
+
+        transcode(file, output, progressBar, function (err) {
+            progressBars.delete(file);
+            if (err) {
+                console.log("Failed transcode of : " + file);
+            }
+        });
+        res.send(JSON.stringify({message: "transcoding started"}));
     }
 });
 
@@ -885,9 +922,24 @@ function viewFile(file, req, res) {
             case "mp4":
             case "mkv":
             case "avi":
+            case "mp3":
+            case "aac":
+            case "ac3": //see https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/audio-samples.html
             case "webm":
-                size = bytesToSize(fs.statSync(file).size);
-                res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, error: error});
+                ffmpeg.ffprobe(file, function (err, metadata) {
+                    var audioCodec = null;
+                    var videoCodec = null;
+                    metadata.streams.forEach(function (stream) {
+                        if (stream.codec_type === "video")
+                            videoCodec = stream.codec_name;
+                        else if (stream.codec_type === "audio")
+                            audioCodec = stream.codec_name;
+                    });
+                    var meta = {audio: audioCodec, video: videoCodec};
+//                    console.log("Video codec: %s Audio codec: %s", videoCodec, audioCodec);
+                    size = bytesToSize(fs.statSync(file).size);
+                    res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, meta: meta, error: error});
+                });
                 break;
             case "pdf":
                 fs.readFile(file, function (err, data) {
@@ -1043,9 +1095,45 @@ var download = function (url, outputFile, progressBar, callback) {
         var elapsedTime = new Date().getTime() - startTime;
         var transfered = size * progress;
         var remaining = size - transfered;
-        var eta = elapsedTime * ((1 - progress) / 100);
-        progressBar.emit('progress', {percentage: progress * 100, transferred: transfered, length: size, remaining: remaining, eta: eta, runtime: elapsedTime, delta: 0, speed: 0});
+        var eta = elapsedTime * 100 / progress;
+        progressBar.emit('progress', {percentage: progress * 100, transferred: transfered, length: size, remaining: remaining, eta: eta, runtime: elapsedTime});
     });
+};
+
+var transcode = function (input, output, progressBar, callback) {
+    var stream = fs.createWriteStream(output, {mode: 0o755});
+    var startTime = new Date().getTime();
+
+    new ffmpeg(input)
+            .withVideoCodec('libx264')
+            .videoBitrate(1024)
+            .withFps(24)
+            .withAudioCodec('aac')
+            .audioBitrate('96k')
+            .audioFrequency(22050)
+            .audioChannels(2)
+            .toFormat('mp4')
+            .outputOptions(['-frag_duration 100', '-movflags frag_keyframe+faststart', '-threads 1'])
+            .on('progress', function (progress) {
+                console.log('progress ' + progress.percent + '%');
+//                console.log('progress ' + JSON.stringify(progress));
+                var elapsedTime = new Date().getTime() - startTime;
+                var size = progress.targetSize * 100 / progress.percent;
+                var remaining = size - progress.targetSize;
+                var eta = elapsedTime * 100 / progress.percent;
+                progressBar.emit('progress', {percentage: progress.percent, transferred: progress.targetSize, length: size, remaining: remaining, eta: eta, runtime: elapsedTime});
+            })
+            .on('end', function () {
+                console.log('file has been converted succesfully');
+            })
+            .on('error', function (err, stdout, stderr) {
+                //console.log('an error happened: ' + err.message + stdout + stderr);
+//                console.log('an error happened: ' + err.message);
+                callback(err.message);
+            })
+            .pipe(stream, {end: true});
+    console.log("transcoding started")
+    callback();
 };
 
 var deleteFolderRecursive = function (path) {
