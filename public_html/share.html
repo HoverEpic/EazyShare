@@ -134,28 +134,6 @@
                                             </tr>
                                         </tbody>
                                     </table>
-
-                                    <!-- pages files -->
-                                    <!--<nav aria-label="Page navigation">
-                                        <ul class="pagination">
-                                            <li>
-                                                <a href="#" aria-label="Previous">
-                                                    <span aria-hidden="true">&laquo;</span>
-                                                </a>
-                                            </li>
-                                            <li><a href="#">1</a></li>
-                                            <li><a href="#">2</a></li>
-                                            <li><a href="#">3</a></li>
-                                            <li><a href="#">4</a></li>
-                                            <li><a href="#">5</a></li>
-                                            <li>
-                                                <a href="#" aria-label="Next">
-                                                    <span aria-hidden="true">&raquo;</span>
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </nav>-->
-
                                 </div>
                                 <div role="tabpanel" class="tab-pane" id="share_options">
                                     <h3>Share options</h3>
@@ -717,18 +695,26 @@
 
                             for (var i = 0; i < data.files.length; i++) {
                                 var file = data.files[i];
-                                $('#files tbody').append(['<tr path="' + file.path + '" size="' + file.size + '">',
+                                $('#files tbody').append([
+                                    '<tr path="' + file.path + '" size="' + file.size + '">',
                                     '<td><span class="glyphicon glyphicon-' + (file.folder ? 'folder-open' : 'send') + '" aria-hidden="true"></span> ' + (file.folder ? ' <a class="folder_click" href="#">' + file.name + '</a>' : file.name) + '</td>',
                                     '<td>' + file.size + '</td>',
                                     '<td>' + file.date + '</td>',
                                     '<td>',
                                     (file.folder ? '' : '<button type="button" class="btn btn-primary btn-xs button_share">Share</button> '),
-                                    (file.folder ? '<button type="button" class="btn btn-default btn-xs button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</button> ' : ''),
-                                    '<button type="button" class="btn btn-danger btn-xs button_delete">Delete</button> ',
-                                    (file.folder ? '' : '<a href="/download/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_download">Download</a> '),
-                                    (file.folder ? '' : '<a target="_blank" href="/view/file?path=' + encodeURI(file.path) + '" class="btn btn-info btn-xs button_view">View</a> '),
+                                    (file.folder ? '' : '<a href="/download/file?path=' + encodeURI(file.path) + '" class="btn btn-success btn-xs button_download"><span class="glyphicon glyphicon-save" aria-hidden="true"></span> Download</a> '),
+                                    (file.folder ? '' : '<a target="_blank" href="/view/file?path=' + encodeURI(file.path) + '" class="btn btn-info btn-xs button_view"><span class="glyphicon glyphicon-play" aria-hidden="true"></span> View</a> '),
+                                    '<span class="btn-group">',
+                                    '<button type="button" class="btn btn-default btn-xs dropdown-toggle" id="dropfile' + i + '" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="true"><span class="glyphicon glyphicon-cog" aria-hidden="true"></span> Options <span class="caret"></span> </button> ',
+                                    '<ul class="dropdown-menu" aria-labelledby="dropfile' + i + '">',
+                                    (file.folder ? '<li><a href="#" class="button_compress"><span class="glyphicon glyphicon-compressed" aria-hidden="true"></span> Compress</a></li>' : ''),
+                                    (file.transcode ? '<li><a href="#" class="button_transcode"><span class="glyphicon glyphicon-hd-video" aria-hidden="true"></span> Transcode</a></li>' : ''),
+                                    '<li><a href="#" class="button_delete"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> Delete</a></li>',
+                                    '</ul>',
+                                    '</span>',
                                     '</td>',
-                                    '</tr>'].join(''));
+                                    '</tr>'
+                                ].join(''));
                             }
                             $('.folder_click').click(function () {
                                 var path = $(this).html();
@@ -739,8 +725,8 @@
                                 updateFileExplorer(data.path + "/" + path);
                             });
                             $(".button_share").click(function () {
-                                var path = $(this).parent().parent().attr("path");
-                                var size = $(this).parent().parent().attr("size");
+                                var path = $(this).parent().parent().attr("path"); //hacky
+                                var size = $(this).parent().parent().attr("size"); //hacky
                                 $('#file_path').html(path);
                                 $('#file_size').html(size);
                                 $('#nav_options').removeClass('disabled');
@@ -751,16 +737,23 @@
                                 $('.nav-tabs a[href="#share_options"]').tab('show');
                             });
                             $(".button_compress").click(function () {
-                                var path = $(this).parent().parent().attr("path");
+                                var path = $(this).parent().parent().parent().parent().parent().attr("path"); //hacky
                                 $('#compressed_input').html(path);
                                 $('#compressed_output').val(path + ".zip");
                                 $('#compress_modal').modal('show');
                             });
                             $(".button_delete").click(function () {
-                                var path = $(this).parent().parent().attr("path");
+                                var path = $(this).parent().parent().parent().parent().parent().attr("path"); //hacky
                                 var r = confirm("You are deleting " + path);
                                 if (r == true) { //OK
                                     deletePath(path);
+                                }
+                            });
+                            $(".button_transcode").click(function () {
+                                var path = $(this).parent().parent().parent().parent().parent().attr("path"); //hacky
+                                var r = confirm("You are transcoding " + path);
+                                if (r == true) { //OK
+                                    transcode(path);
                                 }
                             });
                             $('#compress_button').click(function () {
@@ -937,9 +930,24 @@
                         data = JSON.parse(data);
                         if (data.error) {
                             console.log(data.error);
-                        } else {
+                        } else
                             updateFileExplorer(data.path);
-                            $('#compress_modal').modal('hide');
+                    }
+                });
+            }
+            function transcode(file) {
+                $.ajax({
+                    url: '/transcode',
+                    type: 'GET',
+                    data: {file: file},
+                    contentType: 'application/json',
+                    success: function (data) {
+                        data = JSON.parse(data);
+                        if (data.error) {
+                            console.log(data.error);
+                        } else {
+                            $('a[href="#jobs_tab"]').tab('show');
+                            $('#add_share_modal').modal('hide');
                         }
                     }
                 });
@@ -985,12 +993,12 @@
             //from https://stackoverflow.com/questions/1322732/convert-seconds-to-hh-mm-ss-with-javascript
             function prettyTime(sec) {
                 var sec_num = parseInt(sec, 10);
-                
-                var days = Math.floor(sec_num / (3600*24));
+
+                var days = Math.floor(sec_num / (3600 * 24));
                 var hours = Math.floor(sec_num / 3600) % 24;
                 var minutes = Math.floor(sec_num / 60) % 60;
                 var seconds = sec_num % 60;
-                
+
                 return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
 
                 //return [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).filter((v, i) => v !== "00" || i > 0).join(":");

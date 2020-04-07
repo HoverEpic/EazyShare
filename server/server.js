@@ -454,15 +454,16 @@ app.get('/transcode', function (req, res) {
         if (user) {
             if (file) {
                 var split = file.split("/");
-                var name = split[split.length - 1];
-                
+                var filename = split[split.length - 1];
+                var name = filename.split('.').slice(0, -1).join('.');
+
                 var output = transcoderDir + "/" + name + ".mp4";
 
                 var progressBar = new ProgressEmitter();
                 progressBars.set(output, [{type: "transcode", input: file, output: output, owner: user.name}, progressBar]);
 
                 transcode(file, output, progressBar, function (err) {
-                    progressBars.delete(file);
+                    progressBars.delete(output);
                     if (err) {
                         console.log("Failed transcode of : " + file);
                     }
@@ -574,6 +575,7 @@ app.post('/listfiles', function (req, res) {
                         name: file,
                         path: reqpath + "/" + file,
                         folder: fileSync.isDirectory(),
+                        transcode: isTranscodable(file),
                         size: humanFileSize(fileSync.size, false),
                         date: humanTimeDate(fileSync.mtime.getTime(), 'YYYY-MM-DD HH:mm')};
                     files.push(fileObj);
@@ -610,8 +612,7 @@ app.post('/compress', function (req, res) {
 //                    console.log('Compression progress : ' + progress.percentage + '% (eta : ' + progress.eta + ')');
 //                });
             } else {
-                var progressBar = progressBars.get(output)[1];
-                res.send(JSON.stringify({progress: progressBar.getLast()}));
+                res.send(JSON.stringify());
             }
         } else
             res.status(403).send();
@@ -675,9 +676,7 @@ app.post('/download', function (req, res, next) {
 //                    console.log('Download progress : ' + progress.percentage + '% (eta : ' + progress.eta + ')');
 //                });
             } else {
-                var progressBar = progressBars.get(file)[1];
-//                console.log('Job progress : ' + JSON.stringify(progressBar));
-                res.send(JSON.stringify({progress: progressBar.getLast()}));
+                res.send(JSON.stringify());
             }
         } else
             res.status(403).send();
@@ -714,6 +713,14 @@ app.get('/stats', function (req, res) {
 app.get('/listjobs', function (req, res) {
     check_auth(req, res, function (user) {
         if (user) {
+            // table settings
+            var limit = req.query.limit || 10;
+            var offset = req.query.offset || 0;
+            var order = req.query.order || 'asc';
+            var sort = req.query.sort || 'id';
+            var search = req.query.search || '';
+
+            // TODO add passed jobs (storage)
             var rows = [];
             var total = 0;
             if (progressBars.size > 0) {
@@ -925,7 +932,7 @@ function viewFile(file, req, res) {
                     case "html":
                     case "js":
                     case "css":
-                    case "css":
+                    case "nfo":
                     case "css":
                     case "css":
                         fs.readFile(file, 'utf8', function (error, content) {
@@ -959,7 +966,7 @@ function viewFile(file, req, res) {
                     case "webm":
                         ffmpeg.ffprobe(file, function (error, metadata) {
                             if (!error)
-                            var audioCodec = null;
+                                var audioCodec = null;
                             var videoCodec = null;
                             metadata.streams.forEach(function (stream) {
                                 if (stream.codec_type === "video")
@@ -974,7 +981,7 @@ function viewFile(file, req, res) {
                     case "pdf":
                         fs.readFile(file, function (err, data) {
                             if (!err)
-                            res.contentType("application/pdf");
+                                res.contentType("application/pdf");
                             res.send(data);
                         });
                         break;
@@ -984,6 +991,26 @@ function viewFile(file, req, res) {
                 }
             }
         });
+    }
+}
+
+function isTranscodable(file) {
+    if (file) {
+        var split = file.split("/");
+        var name = split[split.length - 1];
+        var ext = "";
+        if (name.split('.').length > 1)
+            ext = name.split('.').pop();
+        switch (ext) {
+            case "mp4":
+            case "mkv":
+            case "avi":
+                return true;
+                break;
+            default:
+                return false;
+                break;
+        }
     }
 }
 
@@ -1152,6 +1179,7 @@ var transcode = function (input, output, progressBar, callback) {
                 progressBar.emit('progress', {percentage: progress.percent, transferred: progress.targetSize, length: size, remaining: remaining, eta: eta, runtime: elapsedTime});
             })
             .on('end', function () {
+                callback();
 //                console.log('file has been converted succesfully');
             })
             .on('error', function (err, stdout, stderr) {
@@ -1160,7 +1188,6 @@ var transcode = function (input, output, progressBar, callback) {
                 callback(err.message);
             })
             .pipe(stream, {end: true});
-    callback();
 };
 
 var deleteFolderRecursive = function (path) {
