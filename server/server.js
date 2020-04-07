@@ -183,6 +183,10 @@ app.get('/share', function (req, res) {
     });
 });
 
+//var progressBar = new ProgressEmitter();
+//progressBars.set("output", [{type: "client download", input: "file", output: "ip", owner: "bob"}, progressBar]);
+//progressBar.emit('progress', {percentage: 0, transferred: 0, length: 0, remaining: 0, eta: 0, runtime: 0});
+
 // download the file by it's token (token)
 app.get('/download/:token', function (req, res) {
     var token = req.params.token;
@@ -193,25 +197,37 @@ app.get('/download/:token', function (req, res) {
     var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
     if (file) { // in this case, an admin is downloading a file
-        check_auth(req, res, function (connected) {
-            if (connected && file) {
+        check_auth(req, res, function (user) {
+            if (user && file) {
                 var split = file.split("/");
                 var name = split[split.length - 1];
 
-                console.log('<' + ip + '> Starting direct download: ' + file);
+                var progressBar = new ProgressEmitter();
+                progressBars.set(file, [{type: "client download", input: file, output: ip, owner: user.name}, progressBar]);
+
                 var stream = fs.createReadStream(file, {bufferSize: 64 * 1024});
                 var stat = fs.statSync(file);
+
+                var str = Progress({
+                    length: stat.size,
+                    time: 500 /* ms */
+                });
+
+                str.on('progress', function (progress) {
+                    progressBar.emit('progress', progress);
+                });
+
                 res.setHeader('Content-disposition', 'attachment; filename=' + name);
                 res.setHeader('Content-Length', stat.size);
-                stream.pipe(res);
+                stream.pipe(str).pipe(res);
 
                 stream.on('end', () => {
-                    console.log('<' + ip + '> Finish direct download: ' + file);
+                    progressBars.delete(file);
                     res.end();
                 });
 
                 req.on('close', () => {
-                    console.log('<' + ip + '> Closed download: ' + file);
+                    progressBars.delete(file);
                     stream.close();
                     res.end();
                 });
@@ -272,42 +288,55 @@ app.get('/download/:token', function (req, res) {
                     return;
 
                 if (direct === true && passwordOK) {
-                    add_download_history(result, ip, function () {
-                        //specify Content will be an attachment
-                        console.log('<' + ip + '> Starting download: ' + result.file);
-                        var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
-                        var stats = fs.statSync(result.file);
-                        res.setHeader('Content-disposition', 'attachment; filename=' + name);
-                        res.setHeader('Content-Length', stats.size);
 
-                        stream.pipe(res);
+                    var progressBar = new ProgressEmitter();
+                    progressBars.set(file, [{type: "client download", input: file, output: ip}, progressBar]);
 
-                        stream.on('end', () => {
-                            console.log('<' + ip + '> Finish download: ' + result.file);
-                            res.end();
-                        });
+                    var stream = fs.createReadStream(result.file, {bufferSize: 64 * 1024});
+                    var stats = fs.statSync(result.file);
 
-                        req.on('close', () => {
-                            console.log('<' + ip + '> Closed download: ' + result.file);
-                            stream.close();
-                            res.end();
-                        });
+                    var str = Progress({
+                        length: stats.size,
+                        time: 500 /* ms */
+                    });
 
-                        //check count download
-                        get_download_count_by_id(result.id, function (result2) {
-                            if (result2) {
-                                if (result.limit_download === -1)
-                                    return;
-                                if (result2.count >= result.limit_download) {
-                                    console.log("stop sending " + result.id + " !");
-                                    remove_share("(" + result.id + ")", function (result3) {
-                                        if (result3)
-                                            console.log("share " + result.id + " removed !");
-                                    });
-                                    return;
+                    str.on('progress', function (progress) {
+                        progressBar.emit('progress', progress);
+                    });
+
+                    res.setHeader('Content-disposition', 'attachment; filename=' + name);
+                    res.setHeader('Content-Length', stats.size);
+
+                    stream.pipe(str).pipe(res);
+
+                    stream.on('end', () => {
+                        progressBars.delete(file);
+                        res.end();
+
+                        // remove share only if download completed
+                        add_download_history(result, ip, function () {
+                            //check count download
+                            get_download_count_by_id(result.id, function (result2) {
+                                if (result2) {
+                                    if (result.limit_download === -1)
+                                        return;
+                                    if (result2.count >= result.limit_download) {
+                                        console.log("stop sending " + result.id + " !");
+                                        remove_share("(" + result.id + ")", function (result3) {
+                                            if (result3)
+                                                console.log("share " + result.id + " removed !");
+                                        });
+                                        return;
+                                    }
                                 }
-                            }
+                            });
                         });
+                    });
+
+                    req.on('close', () => {
+                        progressBars.delete(file);
+                        stream.close();
+                        res.end();
                     });
                 } else {
                     var error = !passwordOK ? "Wrong password !" : false;
@@ -327,8 +356,8 @@ app.get('/view/:token', function (req, res) {
     token = xss(token);
 
     if (file) { // in this case, an admin is downloading a file
-        check_auth(req, res, function (connected) {
-            if (connected) {
+        check_auth(req, res, function (user) {
+            if (user) {
                 viewFile(file, req, res);
             }
         });
@@ -384,6 +413,7 @@ app.get('/view/:token', function (req, res) {
 });
 
 app.get('/stream', function (req, res) {
+    var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     var path = req.query.path || "";
     var stat = fs.statSync(path);
     var fileSize = stat.size;
@@ -420,29 +450,33 @@ app.get('/stream', function (req, res) {
 
 app.get('/transcode', function (req, res) {
     var file = req.query.file || "";
-    if (file) {
-        var split = file.split("/");
-        var name = split[split.length - 1];
-        var ext = name.split('.').pop();
-        var output = transcoderDir + "/" + name + ".mp4";
+    check_auth(req, res, function (user) {
+        if (user) {
+            if (file) {
+                var split = file.split("/");
+                var name = split[split.length - 1];
+                
+                var output = transcoderDir + "/" + name + ".mp4";
 
-        var progressBar = new ProgressEmitter();
-        progressBars.set(output, [{type: "transcode", input: file, output: output}, progressBar]);
+                var progressBar = new ProgressEmitter();
+                progressBars.set(output, [{type: "transcode", input: file, output: output, owner: user.name}, progressBar]);
 
-        transcode(file, output, progressBar, function (err) {
-            progressBars.delete(file);
-            if (err) {
-                console.log("Failed transcode of : " + file);
+                transcode(file, output, progressBar, function (err) {
+                    progressBars.delete(file);
+                    if (err) {
+                        console.log("Failed transcode of : " + file);
+                    }
+                });
+                res.send(JSON.stringify({message: "transcoding started"}));
             }
-        });
-        res.send(JSON.stringify({message: "transcoding started"}));
-    }
+        }
+    });
 });
 
 // (API) create the link and return the link
 app.put('/share', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var id = Number(req.body.id) || 0;
             var file = req.body.file || "";
             var size = req.body.size || 0;
@@ -503,8 +537,8 @@ app.put('/share', function (req, res) {
 });
 // (API) list active links, with stats
 app.get('/listshares', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var limit = req.query.limit || 10;
             var offset = req.query.offset || 0;
             var order = req.query.order || 'asc';
@@ -525,8 +559,8 @@ app.get('/listshares', function (req, res) {
 });
 // (API) list files in a path
 app.post('/listfiles', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var reqpath = req.body.path || PATH;
             if (reqpath === "/")
                 reqpath = PATH;
@@ -552,14 +586,14 @@ app.post('/listfiles', function (req, res) {
 });
 // (API) compress folder
 app.post('/compress', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var input = req.body.input || null;
             var output = req.body.output || null;
             if (!progressBars.has(output)) {
                 console.log("Starting compression of : " + output);
                 var progressBar = new ProgressEmitter();
-                progressBars.set(output, [{type: "compress", input: input, output: output}, progressBar]);
+                progressBars.set(output, [{type: "compress", input: input, output: output, owner: user.name}, progressBar]);
                 compress(input, output, progressBar, function (err) {
                     progressBars.delete(output);
                     if (err) {
@@ -585,8 +619,8 @@ app.post('/compress', function (req, res) {
 });
 // (API) remove file or folder
 app.post('/delete', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var file = req.body.file || null;
             fs.remove(file, function (err) {
                 if (err)
@@ -603,8 +637,8 @@ app.post('/delete', function (req, res) {
 });
 // (API) upload file
 app.post('/upload', function (req, res, next) {
-    check_auth(req, res, function (result) {
-        if (result && uploadDir !== null) {
+    check_auth(req, res, function (user) {
+        if (user && uploadDir !== null) {
 //            fileUpload.fileHandler(function () {});
             res.send(JSON.stringify({data: uploadDir}));
         } else
@@ -613,8 +647,8 @@ app.post('/upload', function (req, res, next) {
 });
 // (API) upload file
 app.post('/download', function (req, res, next) {
-    check_auth(req, res, function (result) {
-        if (result && downloadDir !== null) {
+    check_auth(req, res, function (user) {
+        if (user && downloadDir !== null) {
             var url = req.body.url || null;
             var file = req.body.file || null;
             file = downloadDir + "/" + file;
@@ -622,7 +656,7 @@ app.post('/download', function (req, res, next) {
             console.log(url);
             if (!progressBars.has(file)) {
                 var progressBar = new ProgressEmitter();
-                progressBars.set(file, [{type: "download", input: url, output: file}, progressBar]);
+                progressBars.set(file, [{type: "download", input: url, output: file, owner: user.name}, progressBar]);
 
                 download(url, file, progressBar, function (err) {
                     progressBars.delete(file);
@@ -651,8 +685,8 @@ app.post('/download', function (req, res, next) {
 });
 // (API) disable an active link
 app.delete('/dellinks', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var ids = req.body.ids || [];
             if (ids.length === 0)
                 res.status(200).send();
@@ -667,8 +701,8 @@ app.delete('/dellinks', function (req, res) {
 });
 // (API) list stats by date
 app.get('/stats', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             get_all_download_history(function (results) {
                 res.send(JSON.stringify({data: results}));
             });
@@ -678,8 +712,8 @@ app.get('/stats', function (req, res) {
 });
 // (API) list active jobs
 app.get('/listjobs', function (req, res) {
-    check_auth(req, res, function (result) {
-        if (result) {
+    check_auth(req, res, function (user) {
+        if (user) {
             var rows = [];
             var total = 0;
             if (progressBars.size > 0) {
@@ -688,6 +722,7 @@ app.get('/listjobs', function (req, res) {
                     if (value[1]) {
                         rows[i] = {};
                         rows[i].type = value[0].type;
+                        rows[i].owner = value[0].owner;
                         rows[i].in = value[0].input;
                         rows[i].out = value[0].output;
                         if (value[1] && value[1].getLast()) {
@@ -863,97 +898,92 @@ function viewFile(file, req, res) {
     if (file) {
         var split = file.split("/");
         var name = split[split.length - 1];
-        var ext = name.split('.').pop();
+        var ext = "";
+        if (name.split('.').length > 1)
+            ext = name.split('.').pop();
         var size = 0;
         var error = "";
-        var stats = fs.statSync(file);
-        res.setHeader('Content-disposition', 'filename=' + name);
-        res.setHeader('Content-Length', stats.size);
+        fs.stat(file, function (err, stat) {
+            if (err) {
+                res.status(404).send();
+            } else {
+                size = bytesToSize(stat.size);
+                res.setHeader('Content-disposition', 'filename=' + name);
+                res.setHeader('Content-Length', stat.size);
 
-        console.log('<' + ip + '> Starting view file: ' + file);
+//        console.log('<' + ip + '> Starting view file: ' + file);
 
-        switch (ext) {
-            case "":
-            case "txt":
-            case "md":
-            case "gcode":
-            case "sh":
-            case "json":
-            case "sql":
-            case "yml":
-            case "html":
-            case "js":
-            case "css":
-            case "css":
-            case "css":
-            case "css":
-                fs.readFile(file, 'utf8', function (error, content) {
-                    if (error)
-                        content = error;
-                    else
-                        size = bytesToSize(fs.statSync(file).size);
-                    res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: content, error: error});
-                });
-                break;
-            case "jpg":
-            case "png":
-            case "gif":
-                fs.readFile(file, function (error, data) {
-                    if (error)
-                        content = error;
-                    else {
-                        size = bytesToSize(fs.statSync(file).size);
-                        var content = "data:image/" + ext + ";base64, " + new Buffer(data).toString('base64');
-                    }
-                    res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
-                });
-                break;
-            case "svg":
-                fs.readFile(file, function (error, data) {
-                    if (error)
-                        content = error;
-                    else {
-                        size = bytesToSize(fs.statSync(file).size);
-                        var content = "data:image/svg+xml;base64, " + new Buffer(data).toString('base64');
-                    }
-                    res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
-                });
-                break;
-            case "mp4":
-            case "mkv":
-            case "avi":
-            case "mp3":
-            case "aac":
-            case "ac3": //see https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/audio-samples.html
-            case "webm":
-                ffmpeg.ffprobe(file, function (err, metadata) {
-                    var audioCodec = null;
-                    var videoCodec = null;
-                    metadata.streams.forEach(function (stream) {
-                        if (stream.codec_type === "video")
-                            videoCodec = stream.codec_name;
-                        else if (stream.codec_type === "audio")
-                            audioCodec = stream.codec_name;
-                    });
-                    var meta = {audio: audioCodec, video: videoCodec};
-//                    console.log("Video codec: %s Audio codec: %s", videoCodec, audioCodec);
-                    size = bytesToSize(fs.statSync(file).size);
-                    res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, meta: meta, error: error});
-                });
-                break;
-            case "pdf":
-                fs.readFile(file, function (err, data) {
-                    res.contentType("application/pdf");
-                    res.send(data);
-                });
-                break;
-            default:
-                error = "Could not read this file !";
-                res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: error, error: error});
-        }
-    } else {
-        var error = "File not found !";
-        res.render(path.join(__dirname + '/public/view/text'), {name: name, size: 0, content: error, error: error});
+                switch (ext) {
+                    case "":
+                    case "txt":
+                    case "md":
+                    case "gcode":
+                    case "sh":
+                    case "json":
+                    case "sql":
+                    case "yml":
+                    case "html":
+                    case "js":
+                    case "css":
+                    case "css":
+                    case "css":
+                    case "css":
+                        fs.readFile(file, 'utf8', function (error, content) {
+                            if (error)
+                                content = error;
+                            res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: content, error: error});
+                        });
+                        break;
+                    case "jpg":
+                    case "png":
+                    case "gif":
+                        fs.readFile(file, function (error, data) {
+                            if (!error)
+                                var content = "data:image/" + ext + ";base64, " + new Buffer(data).toString('base64');
+                            res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
+                        });
+                        break;
+                    case "svg":
+                        fs.readFile(file, function (error, data) {
+                            if (!error)
+                                var content = "data:image/svg+xml;base64, " + new Buffer(data).toString('base64');
+                            res.render(path.join(__dirname + '/public/view/img'), {name: name, size: size, content: content, error: error});
+                        });
+                        break;
+                    case "mp4":
+                    case "mkv":
+                    case "avi":
+                    case "mp3":
+                    case "aac":
+                    case "ac3": //see https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/audio-samples.html
+                    case "webm":
+                        ffmpeg.ffprobe(file, function (error, metadata) {
+                            if (!error)
+                            var audioCodec = null;
+                            var videoCodec = null;
+                            metadata.streams.forEach(function (stream) {
+                                if (stream.codec_type === "video")
+                                    videoCodec = stream.codec_name;
+                                else if (stream.codec_type === "audio")
+                                    audioCodec = stream.codec_name;
+                            });
+                            var meta = {audio: audioCodec, video: videoCodec};
+                            res.render(path.join(__dirname + '/public/view/video'), {name: name, size: size, file: file, meta: meta, error: error});
+                        });
+                        break;
+                    case "pdf":
+                        fs.readFile(file, function (err, data) {
+                            if (!err)
+                            res.contentType("application/pdf");
+                            res.send(data);
+                        });
+                        break;
+                    default:
+                        error = "Could not read this file !";
+                        res.render(path.join(__dirname + '/public/view/text'), {name: name, size: size, content: error, error: error});
+                }
+            }
+        });
     }
 }
 
@@ -1115,8 +1145,6 @@ var transcode = function (input, output, progressBar, callback) {
             .toFormat('mp4')
             .outputOptions(['-frag_duration 100', '-movflags frag_keyframe+faststart', '-threads 1'])
             .on('progress', function (progress) {
-                console.log('progress ' + progress.percent + '%');
-//                console.log('progress ' + JSON.stringify(progress));
                 var elapsedTime = new Date().getTime() - startTime;
                 var size = progress.targetSize * 100 / progress.percent;
                 var remaining = size - progress.targetSize;
@@ -1124,7 +1152,7 @@ var transcode = function (input, output, progressBar, callback) {
                 progressBar.emit('progress', {percentage: progress.percent, transferred: progress.targetSize, length: size, remaining: remaining, eta: eta, runtime: elapsedTime});
             })
             .on('end', function () {
-                console.log('file has been converted succesfully');
+//                console.log('file has been converted succesfully');
             })
             .on('error', function (err, stdout, stderr) {
                 //console.log('an error happened: ' + err.message + stdout + stderr);
@@ -1132,7 +1160,6 @@ var transcode = function (input, output, progressBar, callback) {
                 callback(err.message);
             })
             .pipe(stream, {end: true});
-    console.log("transcoding started")
     callback();
 };
 
