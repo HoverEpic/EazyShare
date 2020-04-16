@@ -85,7 +85,7 @@ if (config.get('Config.Upload.enable')) {
     });
     app.use('/upload', fileUpload.fileHandler());
 }
-download
+//download
 var downloadDir = null;
 if (config.get('Config.Download.enable')) {
     downloadDir = PATH + '/downloads';
@@ -419,6 +419,18 @@ app.get('/stream', function (req, res) {
     var fileSize = stat.size;
     var range = req.headers.range;
 
+    var progressBar = new ProgressEmitter();
+    progressBars.set(path, [{type: "client stream", input: path, output: ip}, progressBar]);
+
+    var str = Progress({
+        length: fileSize,
+        time: 500 /* ms */
+    });
+
+    str.on('progress', function (progress) {
+        progressBar.emit('progress', progress);
+    });
+
     if (range) {
         var parts = range.replace(/bytes=/, "").split("-");
         var start = parseInt(parts[0], 10);
@@ -435,17 +447,22 @@ app.get('/stream', function (req, res) {
             'Content-Type': 'video/mp4'
         };
         res.writeHead(206, head);
-        file.pipe(res);
-
+        file.pipe(str).pipe(res);
     } else {
-        console.log("stream entire content");
         const head = {
             'Content-Length': fileSize,
             'Content-Type': 'video/mp4'
         };
         res.writeHead(200, head);
-        fs.createReadStream(path).pipe(res);
+        fs.createReadStream(path).pipe(str).pipe(res);
     }
+    //remove the progressbar on close or finish
+    req.on('close', () => {
+        progressBars.delete(path);
+    });
+    res.on('finish', () => {
+        progressBars.delete(path);
+    });
 });
 
 app.get('/transcode', function (req, res) {
